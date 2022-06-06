@@ -34,7 +34,6 @@ class NiftiImageDataset(Dataset):
         
         return image, mask
 
-x = NiftiImageDataset("/home/lm/Schreibtisch/Uni/MedicalML/data/training")
 
 
     
