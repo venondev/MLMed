@@ -24,7 +24,7 @@ class NiftiImageDataset(Dataset):
         case = self.cases[idx]
 
         image_raw = nib.load(f"{self.datapath}/{case}_orig.nii.gz")
-        mask_raw = nib.load(f"{self.datapath}/{case}_orig.nii.gz")
+        mask_raw = nib.load(f"{self.datapath}/{case}_masks.nii.gz")
 
         image = torch.from_numpy(image_raw.get_fdata())
         mask = torch.from_numpy(mask_raw.get_fdata())
@@ -32,7 +32,7 @@ class NiftiImageDataset(Dataset):
         if self.transform:
             image, mask = self.transform(image, mask)
         
-        return image, mask
+        return image[None, :].float(), mask[None, :].float()
 
 
 
