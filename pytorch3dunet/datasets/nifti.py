@@ -57,7 +57,12 @@ class NiftiImageDataset(Dataset):
         masks = []
         affines = []
 
-        for case in cases:
+        n = len(cases)
+        for idx, case in enumerate(cases):
+            if idx % 10 == 0:
+                print(f"Loading data {idx} / {n}")
+
+
             image_raw = nib.load(f"{self.datapath}/{case}_orig.nii.gz")
             mask_raw = nib.load(f"{self.datapath}/{case}_masks.nii.gz")
 
@@ -68,5 +73,7 @@ class NiftiImageDataset(Dataset):
             images.append(image)
             masks.append(mask)
             affines.append(affine)
+        
+        print("Finished loading data")
         
         return cases, images, masks, affines
