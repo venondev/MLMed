@@ -10,9 +10,10 @@ model:
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
-  layer_order: gcr
+  layer_order: cr
   # initial number of feature maps
-  f_maps: 8
+  f_maps: 4
+  num_levels: 2
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
@@ -74,7 +75,7 @@ loaders:
   train:
     # path to the training datasets
     file_paths:
-      - /home/lm/Schreibtisch/Uni/MedicalML/pytorch-3dunet/data/training_small_tes
+      - data/training 
 
     transformer:
       raw:
@@ -94,7 +95,7 @@ loaders:
   val:
     # path to the val datasets
     file_paths:
-      - /home/lm/Schreibtisch/Uni/MedicalML/pytorch-3dunet/data/training_small_tes
+      - data/training 
 
     # data augmentation
     transformer:

@@ -17,3 +17,4 @@ logs/
 pytorch3dunet.egg-info/
 dist/
 data
+.vscode/*
