@@ -12,7 +12,7 @@ model:
   # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
   layer_order: gcr
   # initial number of feature maps
-  f_maps: 32
+  f_maps: 8
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
@@ -23,7 +23,7 @@ loss:
   # a target value that is ignored and does not contribute to the input gradient
   ignore_index: null
   # skip the last channel in the target (i.e. when last channel contains data not relevant for the loss)
-  skip_last_target: true
+  skip_last_target: false
 optimizer:
   # initial learning rate
   learning_rate: 0.0002
@@ -59,9 +59,9 @@ trainer:
   # how many iterations between tensorboard logging
   log_after_iters: 500
   # max number of epochs
-  max_num_epochs: 1000
+  max_num_epochs: 100
   # max number of iterations
-  max_num_iterations: 150000
+  max_num_iterations: 150
 # Configure training and validation loaders
 loaders:
   # how many subprocesses to use for data loading
@@ -74,49 +74,27 @@ loaders:
   train:
     # path to the training datasets
     file_paths:
-      - PATH_TO_TRAIN_DIR
+      - /home/lm/Schreibtisch/Uni/MedicalML/pytorch-3dunet/data/training_small_tes
 
-    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    slice_builder:
-      name: FilterSliceBuilder
-      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
-      # train stride between patches
-      stride_shape: [20, 40, 40]
-      # minimum volume of the labels in the patch
-      threshold: 0.6
-      # probability of accepting patches which do not fulfil the threshold criterion
-      slack_acceptance: 0.01
-
-    # data augmentation
     transformer:
       raw:
         - name: Standardize
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [[2, 1]]
+          angle_spectrum: 45
+          mode: reflect
         - name: ToTensor
           expand_dims: true
       label:
-        - name: StandardLabelToBoundary
-          append_label: true
         - name: ToTensor
-          expand_dims: false
+          expand_dims: true
 
   # configuration of the val loader
   val:
     # path to the val datasets
     file_paths:
-      - PATH_TO_VAL_DIR
-
-    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    slice_builder:
-      name: FilterSliceBuilder
-      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [80, 170, 170]
-      # train stride between patches
-      stride_shape: [80, 170, 170]
-      # minimum volume of the labels in the patch
-      threshold: 0.6
-      # probability of accepting patches which do not fulfil the threshold criterion
-      slack_acceptance: 0.01
+      - /home/lm/Schreibtisch/Uni/MedicalML/pytorch-3dunet/data/training_small_tes
 
     # data augmentation
     transformer:
@@ -125,7 +103,5 @@ loaders:
         - name: ToTensor
           expand_dims: true
       label:
-        - name: StandardLabelToBoundary
-          append_label: true
         - name: ToTensor
-          expand_dims: false
+          expand_dims: true
