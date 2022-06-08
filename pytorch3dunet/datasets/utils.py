@@ -200,11 +200,11 @@ def get_train_loaders(config):
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
-        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    # assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
+    #     "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
 
-    train_datasets = NiftiImageDataset("data/training")
-    val_datasets = NiftiImageDataset("data/training")
+    train_datasets = NiftiImageDataset(loaders_config["train"])
+    val_datasets = NiftiImageDataset(loaders_config["val"])
 
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')
