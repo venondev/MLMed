@@ -4,6 +4,7 @@ from torchvision.io import read_image
 from torch.utils.data import Dataset
 import torch
 import nibabel as nib
+from tqdm import tqdm  
 import numpy as np
 import pytorch3dunet.augment.transforms as transforms
 
@@ -51,16 +52,13 @@ class NiftiImageDataset(Dataset):
     def load_data(self):
         cases = os.listdir(self.datapath)
         cases = filter(lambda x: x.endswith("_orig.nii.gz"), cases)
-        cases = list(map(lambda x: x.replace("_orig.nii.gz", ""), cases))
+        cases = list(map(lambda x: x.replace("_orig.nii.gz", ""), cases))[:30]
 
         images = []
         masks = []
         affines = []
 
-        n = len(cases)
-        for idx, case in enumerate(cases):
-            if idx % 10 == 0:
-                print(f"Loading data {idx} / {n}")
+        for case in tqdm(cases, desc="Loading data",ncols=100,total=len(cases)):
 
 
             image_raw = nib.load(f"{self.datapath}/{case}_orig.nii.gz")
