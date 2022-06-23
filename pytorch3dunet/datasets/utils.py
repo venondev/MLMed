@@ -1,11 +1,11 @@
 import collections
 
 import numpy as np
+from pytorch3dunet.datasets import own_hdf5_lazy
 import torch
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
 from pytorch3dunet.unet3d.utils import get_logger, get_class
-from .nifti import NiftiImageDataset
 
 logger = get_logger('Dataset')
 
@@ -166,7 +166,8 @@ def _loader_classes(class_name):
     modules = [
         'pytorch3dunet.datasets.hdf5',
         'pytorch3dunet.datasets.dsb',
-        'pytorch3dunet.datasets.utils'
+        'pytorch3dunet.datasets.utils',
+        'pytorch3dunet.datasets.own_hdf5_lazy'
     ]
     return get_class(class_name, modules)
 
@@ -200,11 +201,12 @@ def get_train_loaders(config):
         logger.warning(f"Cannot find dataset class in the config. Using default '{dataset_cls_str}'.")
     dataset_class = _loader_classes(dataset_cls_str)
 
-    # assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
-    #     "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
+        "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
+    
+    train_datasets = dataset_class.create_datasets(loaders_config, phase='train')
 
-    train_datasets = NiftiImageDataset(loaders_config["train"])
-    val_datasets = NiftiImageDataset(loaders_config["val"])
+    val_datasets = dataset_class.create_datasets(loaders_config, phase='val')
 
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')
@@ -217,10 +219,10 @@ def get_train_loaders(config):
     logger.info(f'Batch size for train/val loader: {batch_size}')
     # when training with volumetric data use batch_size of 1 due to GPU memory constraints
     return {
-        'train': DataLoader(train_datasets, batch_size=batch_size, shuffle=True,
+        'train': DataLoader(ConcatDataset(train_datasets), batch_size=batch_size, shuffle=True,
                             num_workers=num_workers),
         # don't shuffle during validation: useful when showing how predictions for a given batch get better over time
-        'val': DataLoader(val_datasets, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        'val': DataLoader(ConcatDataset(val_datasets), batch_size=batch_size, shuffle=False, num_workers=num_workers)
     }
 
 
@@ -294,3 +296,4 @@ def calculate_stats(images):
     )
     return {'pmin': np.percentile(flat, 1), 'pmax': np.percentile(flat, 99.6), 'mean': np.mean(flat),
             'std': np.std(flat)}
+            
