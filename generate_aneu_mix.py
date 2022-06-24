@@ -44,9 +44,3 @@ for i in range(args.count):
     f.create_dataset("label", data=label_trans)
 
     print("Finished case")
-
-
-
-
-
-
