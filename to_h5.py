@@ -9,7 +9,24 @@ import numpy as np
 from pathlib import Path
 
 # Path to new hdf5 training folder 
-h5_training_path = "/group/emu/data_h5/training/"
+h5_training_path = "./data/training_conv/"
+
+
+def align_dims(image, mask, labeled_mask):
+    if image.shape[2] < 220:
+        diff = 220 - image.shape[2]
+
+        image = np.concatenate([image] + [image[:, :, -1][:, :, np.newaxis]] * diff, axis=2)
+        mask = np.concatenate([mask] + [mask[:, :, -1][:, :, np.newaxis]] * diff, axis=2)
+        labeled_mask = np.concatenate([labeled_mask] + [labeled_mask[:, :, -1][:, :, np.newaxis]] * diff, axis=2)
+
+    if image.shape[2] > 220:
+        image = image[:, :, :220]
+        mask = mask[:, :, :220]
+        labeled_mask = labeled_mask[:, :, :220]
+
+    return image, mask, labeled_mask
+
 
 # Transform NII files to HDF5
 def nii_to_h5(files):
@@ -19,7 +36,9 @@ def nii_to_h5(files):
         orig = np.array(nib.load(file_orig).get_fdata())
         mask = np.array(nib.load(file_mask).get_fdata())
         labelMask = np.array(nib.load(file_labeled).get_fdata())
-        
+
+        orig, mask, labelMask = align_dims(orig, mask, labelMask)
+
         # new file name 
         file_name = str(file_mask).split("/")[-1].split(".")[0]
 
@@ -39,7 +58,7 @@ def numpy_to_h5(orig, mask, labelMask, file_name):
     f.create_dataset("labelMask", data = labelMask)
 
 # Path to NII data
-data_path = Path('/data/training')
+data_path = Path('./data/training')
 
 # Load files
 files = sorted(list(data_path.glob('*.*')))

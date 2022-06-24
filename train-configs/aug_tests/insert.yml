@@ -1,0 +1,26 @@
+loaders:
+  train:
+    # path to the training datasets
+    file_paths:
+      - data/training_conv
+
+    transformer:
+      raw:
+        - name: Insertion
+          # Path to pick examples from
+          path: data/training_conv
+          # Minimum size of inserted random patch
+          min_patch_size: [32, 32, 32]
+          # Maximum size of inserted random patch
+          max_patch_size: [128, 128, 128]
+          # Number of iterations / How many random patches to insert
+          iters: 3
+          # raw / label
+          type: raw
+      label:
+        - name: Insertion
+          path: data/training_conv
+          min_patch_size: [32, 32, 32]
+          max_patch_size: [128, 128, 128]
+          iters: 3
+          type: label
