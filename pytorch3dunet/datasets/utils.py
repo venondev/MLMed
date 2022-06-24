@@ -167,7 +167,8 @@ def _loader_classes(class_name):
         'pytorch3dunet.datasets.hdf5',
         'pytorch3dunet.datasets.dsb',
         'pytorch3dunet.datasets.utils',
-        'pytorch3dunet.datasets.own_hdf5_lazy'
+        'pytorch3dunet.datasets.own_hdf5_lazy',
+        'pytorch3dunet.datasets.own_hdf5_npz_lazy'
     ]
     return get_class(class_name, modules)
 

@@ -25,7 +25,7 @@ model:
 # trainer configuration
 trainer:
   # path to the checkpoint directory
-  checkpoint_dir: CHECKPOINT_DIR
+  checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
@@ -38,7 +38,7 @@ trainer:
   # max number of epochs
   max_num_epochs: 200
   # max number of iterations
-  max_num_iterations: 60000
+  max_num_iterations: 10000000
   # model with higher eval score is considered better
   eval_score_higher_is_better: True
 # loss function configuration
@@ -76,34 +76,34 @@ loaders:
   # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
   # When using LazyHDF5Dataset make sure to set `num_workers = 1`, due to a bug in h5py which corrupts the data
   # when reading from multiple threads.
-  dataset: LazyHDF5Dataset
+  dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
   batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 8
   # path to the raw data within the H5
-  raw_internal_path: raw
-  # path to the the label data within the H5
-  label_internal_path: label
+  raw_internal_path: /raw
+  # path to the the label data withtin the H5
+  label_internal_path: /label
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
   # configuration of the train loader
   train:
     # paths to the training datasets
     file_paths:
-      - TRAIN_DIR
+      - data_h5/train
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    # slice_builder:
-    #   name: FilterSliceBuilder
-    #   # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-    #   patch_shape: [80, 170, 170]
-    #   # train stride between patches
-    #   stride_shape: [20, 40, 40]
-    #   # minimum volume of the labels in the patch
-    #   threshold: 0.01
-    #   # probability of accepting patches which do not fulfil the threshold criterion
-    #   slack_acceptance: 0.01
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [128, 128, 128]
+      # train stride between patches
+      stride_shape: [64, 64, 64]
+      # minimum volume of the labels in the patch
+      threshold: 0
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
 
     transformer:
       raw:
@@ -147,19 +147,19 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - VAL_DIR
+      - data_h5/validation
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    # slice_builder:
-    #   name: FilterSliceBuilder
-    #   # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-    #   patch_shape: [80, 170, 170]
-    #   # train stride between patches
-    #   stride_shape: [80, 170, 170]
-    #   # minimum volume of the labels in the patch
-    #   threshold: 0.01
-    #   # probability of accepting patches which do not fulfil the threshold criterion
-    #   slack_acceptance: 0.01
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [128, 128, 128]
+      # train stride between patches
+      stride_shape: [64, 64, 64]
+      # minimum volume of the labels in the patch
+      threshold: 0
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
 
     # data augmentation
     transformer:
