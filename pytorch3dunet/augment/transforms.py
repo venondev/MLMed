@@ -3,7 +3,9 @@ import random
 
 import numpy as np
 import torch
-from scipy.ndimage import rotate, map_coordinates, gaussian_filter, convolve
+import h5py
+import os
+from scipy.ndimage import rotate, zoom, map_coordinates, gaussian_filter, convolve
 from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
@@ -48,6 +50,240 @@ class RandomFlip:
                     m = np.stack(channels, axis=0)
 
         return m
+
+
+class Slice3D:
+    def __init__(self, start, stop):
+        self.start = start
+        self.stop = stop
+
+    def __sub__(self, other):
+        assert isinstance(other, np.ndarray), "Must be ndarray"
+        assert len(other) == 3
+
+        return Slice3D(self.start - other, self.stop - other)
+
+    @property
+    def tuple(self):
+        slices = []
+        for i in range(3):
+            slices.append(slice(self.start[i], self.stop[i]))
+
+        return tuple(slices)
+
+
+class AneuInsertion:
+
+    def __init__(
+            self,
+            random_state,
+            path,
+            padding=10,
+            iters=1,
+            type="raw",
+            crop=True,
+            **kwargs
+    ):
+        assert type in ["raw", "label"]
+
+        self.random_state = random_state
+        self.path = path
+        self.iters = iters
+        self.type = type
+        self.padding = padding
+        self.cases = os.listdir(self.path)
+        self.crop = crop
+
+    def load_rand_case(self):
+        pick = self.random_state.choice(self.cases)
+        return h5py.File(f"{self.path}/{pick}", mode="r")
+
+    @staticmethod
+    def pad_min_max(max, ival, padding):
+        return slice(
+            np.clip(ival[0] - padding, a_min=0, a_max=max - 1),
+            np.clip(ival[1] + padding, a_min=0, a_max=max - 1)
+        )
+
+    def get_aneurysm_bounds(self, mask):
+        x_s = mask.sum(axis=(1, 2))
+        y_s = mask.sum(axis=(0, 2))
+        z_s = mask.sum(axis=(0, 1))
+
+        x = np.where(x_s)[0][[0, -1]]
+        y = np.where(y_s)[0][[0, -1]]
+        z = np.where(z_s)[0][[0, -1]]
+
+        x = self.pad_min_max(mask.shape[0], x, self.padding)
+        y = self.pad_min_max(mask.shape[1], y, self.padding)
+        z = self.pad_min_max(mask.shape[2], z, self.padding)
+
+        return x, y, z
+
+    def __call__(self, m):
+        for _ in range(self.iters):
+            insert_case = self.load_rand_case()
+            bound = self.get_aneurysm_bounds(insert_case["label"][:])
+            insert_case_raw = insert_case[self.type][:]
+
+            if self.type == "raw":
+                insert_case_raw /= insert_case_raw.max()
+
+            aneu = insert_case_raw[bound]
+
+            # Rotating and scaling of aneurysm
+            rotation = self.random_state.randint(0, 360)
+            axes = [(1, 0), (2, 1), (2, 0)]
+            ax = axes[self.random_state.randint(0, 3)]
+            aneu = rotate(aneu, rotation, axes=ax, reshape=False, order=0)
+
+            # Get Zoom between 0.8 and 1.2
+            zoom_fac = self.random_state.random() * 0.4 + 0.8
+            aneu = zoom(aneu, zoom_fac, order=0)
+
+            aneu_shape = np.array(aneu.shape)
+            m_shape = np.array(m.shape)
+
+            if self.crop:
+                # Allow aneurysm to be placed slightly outside the area of the current case
+                # but at least 50 % of the aneurysm should be inside.
+                aneu_shape_h = aneu_shape // 2
+                pos = self.random_state.randint(-aneu_shape_h, m_shape - aneu_shape_h)
+
+                start = np.max([pos, np.zeros(3)], axis=0).astype(int)
+                end = np.min([pos + aneu_shape, m_shape], axis=0).astype(int)
+
+                m_slice = Slice3D(start, end)
+                aneu_slice = m_slice - pos
+
+                m[m_slice.tuple] = np.maximum(aneu[aneu_slice.tuple], m[m_slice.tuple])
+            else:
+                # get Position
+                start = self.random_state.randint(0, m_shape - aneu_shape)
+                end = start + aneu_shape
+                m_slice = Slice3D(start, end)
+
+                m[m_slice.tuple] = np.maximum(aneu, m[m_slice.tuple])
+
+        return m
+
+
+class Perlin:
+
+    def __init__(
+            self,
+            random_state,
+            alpha,
+            res,
+            shape,
+            **kwargs
+    ):
+        self.random_state = random_state
+        self.alpha = alpha
+        self.res = res
+        self.shape = shape
+
+    def generate_perlin_noise_3d(self):
+        def f(t):
+            return 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3
+
+        delta = (self.res[0] / self.shape[0], self.res[1] / self.shape[1], self.res[2] / self.shape[2])
+        d = (self.shape[0] // self.res[0], self.shape[1] // self.res[1], self.shape[2] // self.res[2])
+        grid = np.mgrid[0:self.res[0]:delta[0], 0:self.res[1]:delta[1], 0:self.res[2]:delta[2]]
+        grid = grid.transpose(1, 2, 3, 0) % 1
+        # Gradients
+        theta = 2 * np.pi * self.random_state.rand(self.res[0] + 1, self.res[1] + 1, self.res[2] + 1)
+        phi = 2 * np.pi * self.random_state.rand(self.res[0] + 1, self.res[1] + 1, self.res[2] + 1)
+        gradients = np.stack((np.sin(phi) * np.cos(theta), np.sin(phi) * np.sin(theta), np.cos(phi)), axis=3)
+        gradients[-1] = gradients[0]
+        g000 = gradients[0:-1, 0:-1, 0:-1].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g100 = gradients[1:, 0:-1, 0:-1].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g010 = gradients[0:-1, 1:, 0:-1].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g110 = gradients[1:, 1:, 0:-1].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g001 = gradients[0:-1, 0:-1, 1:].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g101 = gradients[1:, 0:-1, 1:].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g011 = gradients[0:-1, 1:, 1:].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        g111 = gradients[1:, 1:, 1:].repeat(d[0], 0).repeat(d[1], 1).repeat(d[2], 2)
+        # Ramps
+        n000 = np.sum(np.stack((grid[:, :, :, 0], grid[:, :, :, 1], grid[:, :, :, 2]), axis=3) * g000, 3)
+        n100 = np.sum(np.stack((grid[:, :, :, 0] - 1, grid[:, :, :, 1], grid[:, :, :, 2]), axis=3) * g100, 3)
+        n010 = np.sum(np.stack((grid[:, :, :, 0], grid[:, :, :, 1] - 1, grid[:, :, :, 2]), axis=3) * g010, 3)
+        n110 = np.sum(np.stack((grid[:, :, :, 0] - 1, grid[:, :, :, 1] - 1, grid[:, :, :, 2]), axis=3) * g110, 3)
+        n001 = np.sum(np.stack((grid[:, :, :, 0], grid[:, :, :, 1], grid[:, :, :, 2] - 1), axis=3) * g001, 3)
+        n101 = np.sum(np.stack((grid[:, :, :, 0] - 1, grid[:, :, :, 1], grid[:, :, :, 2] - 1), axis=3) * g101, 3)
+        n011 = np.sum(np.stack((grid[:, :, :, 0], grid[:, :, :, 1] - 1, grid[:, :, :, 2] - 1), axis=3) * g011, 3)
+        n111 = np.sum(np.stack((grid[:, :, :, 0] - 1, grid[:, :, :, 1] - 1, grid[:, :, :, 2] - 1), axis=3) * g111, 3)
+        # Interpolation
+        t = f(grid)
+        n00 = n000 * (1 - t[:, :, :, 0]) + t[:, :, :, 0] * n100
+        n10 = n010 * (1 - t[:, :, :, 0]) + t[:, :, :, 0] * n110
+        n01 = n001 * (1 - t[:, :, :, 0]) + t[:, :, :, 0] * n101
+        n11 = n011 * (1 - t[:, :, :, 0]) + t[:, :, :, 0] * n111
+        n0 = (1 - t[:, :, :, 1]) * n00 + t[:, :, :, 1] * n10
+        n1 = (1 - t[:, :, :, 1]) * n01 + t[:, :, :, 1] * n11
+        return ((1 - t[:, :, :, 2]) * n0 + t[:, :, :, 2] * n1)
+
+    def __call__(self, x):
+        print(x.shape)
+        noise = self.generate_perlin_noise_3d()
+        n, l, k = x.shape
+        return x + self.alpha * noise[:n, :l, :k]
+
+
+class Insertion:
+
+    def __init__(
+            self,
+            random_state,
+            path,
+            min_patch_size=(32, 32, 32),
+            max_patch_size=(128, 128, 128),
+            iters=1,
+            type="raw",
+            **kwargs
+    ):
+        assert type in ["raw", "label"]
+
+        self.random_state = random_state
+        self.path = path
+        self.min_patch_size = min_patch_size
+        self.max_patch_size = max_patch_size
+        self.iters = iters
+        self.type = type
+        self.cases = os.listdir(self.path)
+
+    def load_rand_case(self):
+        pick = self.random_state.choice(self.cases)
+        return h5py.File(f"{self.path}/{pick}", mode="r")
+
+    def __call__(self, x):
+        for _ in range(self.iters):
+            insert_case_raw = self.load_rand_case()[self.type][:]
+
+            if self.type == "raw":
+                insert_case_raw /= insert_case_raw.max()
+
+            # Get random size
+            size = self.random_state.randint(low=self.min_patch_size, high=np.array(self.max_patch_size), size=3)
+
+            # Get position to insert in image a
+            insert_pos = self.random_state.randint(low=0, high=np.array(x.shape) - size, size=3)
+
+            # Get position to use from image b
+            retrieve_pos = self.random_state.randint(low=0, high=np.array(insert_case_raw.shape) - size, size=3)
+
+            insert_slice = Slice3D(insert_pos, insert_pos + size)
+            retrieve_slice = Slice3D(retrieve_pos, retrieve_pos + size)
+
+            x[insert_slice.tuple] = insert_case_raw[retrieve_slice.tuple]
+
+        return x
+
+
+# Just for debugging
+class Identity:
+    def __call__(self, x):
+        return x
 
 
 class RandomRotate90:

@@ -1,0 +1,26 @@
+loaders:
+  train:
+    # path to the training datasets
+    file_paths:
+      - data/training_conv
+
+    transformer:
+      raw:
+        - name: AneuInsertion
+          # Path to pick examples from
+          path: data/training_conv
+          # Padding around an aneurysm
+          padding: 10
+          # How many insert iterations / How many aneurysms to insert
+          iters: 3
+          # label or raw
+          type: raw
+          # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
+          crop: False
+      label:
+        - name: AneuInsertion
+          path: data/training_conv
+          padding: 10
+          iters: 3
+          type: label
+          crop: False
