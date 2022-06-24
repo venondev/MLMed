@@ -1,7 +1,6 @@
 import collections
 
 import numpy as np
-from pytorch3dunet.datasets import own_hdf5_lazy
 import torch
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
@@ -167,7 +166,8 @@ def _loader_classes(class_name):
         'pytorch3dunet.datasets.hdf5',
         'pytorch3dunet.datasets.dsb',
         'pytorch3dunet.datasets.utils',
-        'pytorch3dunet.datasets.own_hdf5_lazy'
+        'pytorch3dunet.datasets.own_hdf5_lazy',
+        'pytorch3dunet.datasets.own_hdf5_npz_lazy'
     ]
     return get_class(class_name, modules)
 

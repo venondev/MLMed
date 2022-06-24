@@ -1,5 +1,5 @@
 import random
-from pytorch3dunet.datasets import own_hdf5_lazy
+from pytorch3dunet.datasets import own_hdf5_npz_lazy
 
 import torch
 from pathlib import Path
