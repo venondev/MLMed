@@ -1,7 +1,6 @@
 import collections
 
 import numpy as np
-from pytorch3dunet.datasets import own_hdf5_lazy
 import torch
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
