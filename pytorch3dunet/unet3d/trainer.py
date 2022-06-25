@@ -16,7 +16,7 @@ from . import utils
 logger = get_logger('UNet3DTrainer')
 
 
-def create_trainer(config):
+def create_trainer(config,test_run=False):
     # Create the model
     model = get_model(config['model'])
     # use DataParallel if more than 1 GPU available
@@ -38,7 +38,7 @@ def create_trainer(config):
     eval_criterion = get_evaluation_metric(config)
 
     # Create data loaders
-    loaders = get_train_loaders(config)
+    loaders = get_train_loaders(config, test_run=test_run)
 
     # Create the optimizer
     optimizer = create_optimizer(config['optimizer'], model)
@@ -100,13 +100,14 @@ class UNet3DTrainer:
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
                  eval_criterion, device, loaders, checkpoint_dir,
+                 acc_batchsize,
                  max_num_epochs, max_num_iterations,
                  validate_after_iters=200, log_after_iters=100,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True,
                  tensorboard_formatter=None, skip_train_validation=False,
                  resume=None, pre_trained=None, **kwargs):
-
+        self.acc_batchsize = acc_batchsize
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
@@ -180,6 +181,7 @@ class UNet3DTrainer:
 
         # sets the model in training mode
         self.model.train()
+        self.optimizer.zero_grad()
 
         for t in self.loaders['train']:
             logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
@@ -192,9 +194,14 @@ class UNet3DTrainer:
             train_losses.update(loss.item(), self._batch_size(input))
 
             # compute gradients and update parameters
-            self.optimizer.zero_grad()
+            loss/=self.acc_batchsize
+            
             loss.backward()
-            self.optimizer.step()
+            
+
+            if self.num_iterations % self.acc_batchsize == 0 and (self.num_iterations!=0 or self.acc_batchsize==1):
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
             if self.num_iterations % self.validate_after_iters == 0:
                 # set the model in eval mode

@@ -13,7 +13,7 @@ model:
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # number of features at each level of the U-Net
-  f_maps: [32, 64, 128, 256]
+  f_maps: 32
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
@@ -24,6 +24,7 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
+  acc_batchsize: 32
   # path to the checkpoint directory
   checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
@@ -32,7 +33,7 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 1000
+  validate_after_iters: 100
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # max number of epochs
@@ -44,9 +45,10 @@ trainer:
 # loss function configuration
 loss:
   # use BCE loss for training
-  name: BCEWithLogitsLoss
-  # skip last channel in the target containing the labeled nuclei instances
-  skip_last_target: true
+  name: BCEDiceLoss
+  alphs: 1
+  beta: 1
+
 # optimizer configuration
 optimizer:
   # initial learning rate
@@ -56,16 +58,13 @@ optimizer:
 # evaluation metric
 eval_metric:
   # use average precision metric
-  name: BlobsAveragePrecision
-  # values on which the nuclei probability maps will be thresholded for AP computation
-  thresholds: [0.4, 0.5, 0.6, 0.7, 0.8]
-  metric: 'ap'
+  name: MeanIoU
 # learning rate scheduler configuration
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
   name: ReduceLROnPlateau
   # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
-  mode: min
+  mode: max
   # factor by which learning rate will be reduced
   factor: 0.2
   # number of *validation runs* with no improvement after which learning rate will be reduced
@@ -110,38 +109,32 @@ loaders:
         # subtract mean and divide by std dev
         - name: Standardize
         # randomly flips the volume in one of the axis
-        - name: RandomFlip
-        # randomly rotates the volume with 90 deg across a randomly chosen plane
-        - name: RandomRotate90
-        - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [[2, 1]]
-          # rotates by choosing random angle from [-30, 30] deg
-          angle_spectrum: 30
-          mode: reflect
-        - name: ElasticDeformation
-          spline_order: 3
+        # - name: RandomFlip
+        # # randomly rotates the volume with 90 deg across a randomly chosen plane
+        # - name: RandomRotate90
+        # - name: RandomRotate
+        #   # rotate only in ZY plane due to anisotropy
+        #   axes: [[2, 1]]
+        #   # rotates by choosing random angle from [-30, 30] deg
+        #   angle_spectrum: 30
+        #   mode: reflect
+        # - name: ElasticDeformation
+        #   spline_order: 3
         - name: ToTensor
           expand_dims: true
       label:
-        - name: RandomFlip
-        - name: RandomRotate90
-        - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [[2, 1]]
-          angle_spectrum: 30
-          mode: reflect
-        - name: ElasticDeformation
-          spline_order: 0
+        # - name: RandomFlip
+        # - name: RandomRotate90
+        # - name: RandomRotate
+        #   # rotate only in ZY plane due to anisotropy
+        #   axes: [[2, 1]]
+        #   angle_spectrum: 30
+        #   mode: reflect
+        # - name: ElasticDeformation
+        #   spline_order: 0
           # convert target volume to binary mask
-        - name: BlobsToMask
-          # append ground truth labels in the last channel of the target for evaluation metric computation
-          append_label: true
-          # if 'true' appends boundary mask as a 2nd channel of the target; boundaries are computed using the 'find_boundaries()' function from skimage
-          # learning the boundaries as a 2nd objective sometimes helps with the nuclei mask prediction
-          boundary: false
         - name: ToTensor
-          expand_dims: false
+          expand_dims: true
 
   # configuration of the val loader
   val:
@@ -168,8 +161,5 @@ loaders:
         - name: ToTensor
           expand_dims: true
       label:
-        - name: BlobsToMask
-          append_label: true
-          boundary: false
         - name: ToTensor
-          expand_dims: false
+          expand_dims: true

@@ -1,5 +1,5 @@
 import random
-from pytorch3dunet.datasets import own_hdf5_npz_lazy
+from pytorch3dunet.datasets import  own_hdf5_npz_lazy
 
 import torch
 from pathlib import Path
@@ -12,7 +12,7 @@ logger = get_logger('TrainingSetup')
 
 def main():
     # Load and log experiment configuration
-    config,store_slices = load_config()
+    config,store_slices,test_run = load_config()
     logger.info(config)
 
     manual_seed = config.get('manual_seed', None)
@@ -32,11 +32,11 @@ def main():
         path = Path(config["loaders"]["val"]["temp_file_path"])
         path.mkdir(parents=True, exist_ok=True)
 
-        own_hdf5_lazy.create_all_slices(config['loaders'], phase='train')
-        own_hdf5_lazy.create_all_slices(config['loaders'], phase='val')
+        own_hdf5_npz_lazy.create_all_slices(config['loaders'], phase='train')
+        own_hdf5_npz_lazy.create_all_slices(config['loaders'], phase='val')
         exit()
     else:
-        trainer = create_trainer(config)
+        trainer = create_trainer(config,test_run=test_run)
     # Start training
     trainer.fit()
 

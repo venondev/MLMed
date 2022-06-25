@@ -12,6 +12,7 @@ def load_config():
     parser = argparse.ArgumentParser(description='UNet3D')
     parser.add_argument('--config', type=str, help='Path to the YAML config file', required=True)
     parser.add_argument('--store_slices', dest='store_slices', action='store_true')
+    parser.add_argument('--test', dest='test', action='store_true')
     args = parser.parse_args()
     config = yaml.safe_load(open(args.config, 'r'))
     # Get a device to train on
@@ -27,7 +28,7 @@ def load_config():
 
     device = torch.device(device_str)
     config['device'] = device
-    return (config,args.store_slices)
+    return (config,args.store_slices,args.test)
 
 
 def _load_config_yaml(config_file):
