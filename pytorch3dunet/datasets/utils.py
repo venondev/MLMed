@@ -179,7 +179,7 @@ def get_slice_builder(raws, labels, weight_maps, config):
     return slice_builder_cls(raws, labels, weight_maps, **config)
 
 
-def get_train_loaders(config):
+def get_train_loaders(config,test_run=False):
     """
     Returns dictionary containing the training and validation loaders (torch.utils.data.DataLoader).
 
@@ -204,9 +204,9 @@ def get_train_loaders(config):
     assert set(loaders_config['train']['file_paths']).isdisjoint(loaders_config['val']['file_paths']), \
         "Train and validation 'file_paths' overlap. One cannot use validation data for training!"
     
-    train_datasets = dataset_class.create_datasets(loaders_config, phase='train')
+    train_datasets = dataset_class.create_datasets(loaders_config, phase='train',test_run=test_run)
 
-    val_datasets = dataset_class.create_datasets(loaders_config, phase='val')
+    val_datasets = dataset_class.create_datasets(loaders_config, phase='val',test_run=test_run)
 
     num_workers = loaders_config.get('num_workers', 1)
     logger.info(f'Number of workers for train/val dataloader: {num_workers}')

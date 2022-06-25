@@ -16,7 +16,7 @@ from . import utils
 logger = get_logger('UNet3DTrainer')
 
 
-def create_trainer(config):
+def create_trainer(config,test_run=False):
     # Create the model
     model = get_model(config['model'])
     # use DataParallel if more than 1 GPU available
@@ -38,7 +38,7 @@ def create_trainer(config):
     eval_criterion = get_evaluation_metric(config)
 
     # Create data loaders
-    loaders = get_train_loaders(config)
+    loaders = get_train_loaders(config, test_run=test_run)
 
     # Create the optimizer
     optimizer = create_optimizer(config['optimizer'], model)
