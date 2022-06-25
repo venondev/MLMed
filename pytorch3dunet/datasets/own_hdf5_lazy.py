@@ -160,7 +160,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         assert _volume_shape(raw) == _volume_shape(label), 'Raw and labels have to be of the same size'
 
     @classmethod
-    def create_datasets(cls, dataset_config, phase):
+    def create_datasets(cls, dataset_config, phase,test_run=False):
         phase_config = dataset_config[phase]
 
         # load data augmentation configuration
@@ -172,6 +172,8 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         # file_paths may contain both files and directories; if the file_path is a directory all H5 files inside
         # are going to be included in the final file_paths
         file_paths = cls.traverse_h5_paths(file_paths)
+        if test_run:
+            file_paths=file_paths[:1]
 
         datasets = []
         for file_path in file_paths:
