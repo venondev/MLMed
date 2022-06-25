@@ -32,8 +32,8 @@ def main():
         path = Path(config["loaders"]["val"]["temp_file_path"])
         path.mkdir(parents=True, exist_ok=True)
 
-        own_hdf5_lazy.create_all_slices(config['loaders'], phase='train')
-        own_hdf5_lazy.create_all_slices(config['loaders'], phase='val')
+        own_hdf5_npz_lazy.create_all_slices(config['loaders'], phase='train')
+        own_hdf5_npz_lazy.create_all_slices(config['loaders'], phase='val')
         exit()
     else:
         trainer = create_trainer(config)
