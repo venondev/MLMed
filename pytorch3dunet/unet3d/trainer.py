@@ -3,13 +3,15 @@ import os
 import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.tensorboard import SummaryWriter
+
 
 from pytorch3dunet.datasets.utils import get_train_loaders
+import numpy as np
+from pytorch3dunet.unet3d import online_logger
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
-from pytorch3dunet.unet3d.utils import get_logger, get_tensorboard_formatter, create_optimizer, \
+from pytorch3dunet.unet3d.utils import get_logger, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
 
@@ -47,8 +49,8 @@ def create_trainer(config,test_run=False):
     lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
 
     trainer_config = config['trainer']
-    # Create tensorboard formatter
-    tensorboard_formatter = get_tensorboard_formatter(trainer_config.pop('tensorboard_formatter', None))
+    web_logger=online_logger.get_class(trainer_config["online_logger"])(model,config)
+
     # Create trainer
     resume = trainer_config.pop('resume', None)
     pre_trained = trainer_config.pop('pre_trained', None)
@@ -58,7 +60,7 @@ def create_trainer(config,test_run=False):
                          lr_scheduler=lr_scheduler,
                          loss_criterion=loss_criterion,
                          eval_criterion=eval_criterion,
-                         tensorboard_formatter=tensorboard_formatter,
+                         web_logger=web_logger,
                          device=config['device'],
                          loaders=loaders,
                          resume=resume,
@@ -85,37 +87,38 @@ class UNet3DTrainer:
         max_num_epochs (int): maximum number of epochs
         max_num_iterations (int): maximum number of iterations
         validate_after_iters (int): validate after that many iterations
-        log_after_iters (int): number of iterations before logging to tensorboard
+        log_after_iters (int): number of iterations before logging
         validate_iters (int): number of validation iterations, if None validate
             on the whole validation set
         eval_score_higher_is_better (bool): if True higher eval scores are considered better
         best_eval_score (float): best validation score so far (higher better)
         num_iterations (int): useful when loading the model from the checkpoint
         num_epoch (int): useful when loading the model from the checkpoint
-        tensorboard_formatter (callable): converts a given batch of input/output/target image to a series of images
-            that can be displayed in tensorboard
         skip_train_validation (bool): if True eval_criterion is not evaluated on the training set (used mostly when
             evaluation is expensive)
     """
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
-                 eval_criterion, device, loaders, checkpoint_dir,
-                 acc_batchsize,
+                 eval_criterion,web_logger, device, loaders, checkpoint_dir,verbose_train_validation,
                  max_num_epochs, max_num_iterations,
-                 validate_after_iters=200, log_after_iters=100,
+                 acc_batchsize=1,store_after_val=100,
+                 validate_after_iters=200, log_after_iters=100,num_of_img_per_val=1,
                  validate_iters=None, num_iterations=1, num_epoch=0,
-                 eval_score_higher_is_better=True,
-                 tensorboard_formatter=None, skip_train_validation=False,
+                 eval_score_higher_is_better=True, skip_train_validation=False,
                  resume=None, pre_trained=None, **kwargs):
+        self.web_logger=web_logger
         self.acc_batchsize = acc_batchsize
+        self.verbose_train_validation=verbose_train_validation,
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
         self.loss_criterion = loss_criterion
         self.eval_criterion = eval_criterion
+        self.store_after_val=store_after_val
         self.device = device
         self.loaders = loaders
         self.checkpoint_dir = checkpoint_dir
+        self.num_of_img_per_val=num_of_img_per_val
         self.max_num_epochs = max_num_epochs
         self.max_num_iterations = max_num_iterations
         self.validate_after_iters = validate_after_iters
@@ -132,10 +135,6 @@ class UNet3DTrainer:
         else:
             self.best_eval_score = float('+inf')
 
-        self.writer = SummaryWriter(log_dir=os.path.join(checkpoint_dir, 'logs'))
-
-        assert tensorboard_formatter is not None, 'TensorboardFormatter must be provided'
-        self.tensorboard_formatter = tensorboard_formatter
 
         self.num_iterations = num_iterations
         self.num_epochs = num_epoch
@@ -159,16 +158,22 @@ class UNet3DTrainer:
                 self.checkpoint_dir = os.path.split(pre_trained)[0]
 
     def fit(self):
-        for _ in range(self.num_epochs, self.max_num_epochs):
-            # train for one epoch
-            should_terminate = self.train()
+        try:
+            for _ in range(self.num_epochs, self.max_num_epochs):
+                # train for one epoch
+                should_terminate = self.train()
 
-            if should_terminate:
-                logger.info('Stopping criterion is satisfied. Finishing training')
-                return
+                if should_terminate:
+                    logger.info('Stopping criterion is satisfied. Finishing training')
+                    
+                    return
 
-            self.num_epochs += 1
-        logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
+                self.num_epochs += 1
+            logger.info(f"Reached maximum number of epochs: {self.max_num_epochs}. Finishing training...")
+        except KeyboardInterrupt:
+            logger.info(f"Exit training by pressing CTRL+C ...")
+            self.run_validation_step(store_model=True)
+            
 
     def train(self):
         """Trains the model for 1 epoch.
@@ -176,8 +181,8 @@ class UNet3DTrainer:
         Returns:
             True if the training should be terminated immediately, False otherwise
         """
-        train_losses = utils.RunningAverage()
-        train_eval_scores = utils.RunningAverage()
+        self.train_losses = utils.RunningAverage()
+        self.train_losses = utils.RunningAverage()
 
         # sets the model in training mode
         self.model.train()
@@ -191,7 +196,12 @@ class UNet3DTrainer:
 
             output, loss = self._forward_pass(input, target, weight)
 
-            train_losses.update(loss.item(), self._batch_size(input))
+            self.train_losses.update(loss.item(), self._batch_size(input))
+
+            if self.verbose_train_validation:
+                eval_score = self.eval_criterion(output, target)
+                self.train_losses.update(eval_score.item(), self._batch_size(input))
+
 
             # compute gradients and update parameters
             loss/=self.acc_batchsize
@@ -199,50 +209,56 @@ class UNet3DTrainer:
             loss.backward()
             
 
-            if self.num_iterations % self.acc_batchsize == 0 and (self.num_iterations!=0 or self.acc_batchsize==1):
+            if self.num_iterations % self.acc_batchsize == 0 or self.acc_batchsize==1:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
 
             if self.num_iterations % self.validate_after_iters == 0:
-                # set the model in eval mode
-                self.model.eval()
-                # evaluate on validation set
-                eval_score = self.validate()
-                # set the model back to training mode
-                self.model.train()
-
-                # adjust learning rate if necessary
-                if isinstance(self.scheduler, ReduceLROnPlateau):
-                    self.scheduler.step(eval_score)
-                else:
-                    self.scheduler.step()
-                # log current learning rate in tensorboard
-                self._log_lr()
-                # remember best validation metric
-                is_best = self._is_best_eval_score(eval_score)
-
-                # save checkpoint
-                self._save_checkpoint(is_best)
+                self.run_validation_step(store_model=self.num_iterations %(self.store_after_val*self.validate_after_iters)==0)
 
             if self.num_iterations % self.log_after_iters == 0:
                 # compute eval criterion
-                if not self.skip_train_validation:
+                if not self.skip_train_validation and not self.verbose_train_validation:
                     eval_score = self.eval_criterion(output, target)
-                    train_eval_scores.update(eval_score.item(), self._batch_size(input))
+                    self.train_losses.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
                 logger.info(
-                    f'Training stats. Loss: {train_losses.avg}. Evaluation score: {train_eval_scores.avg}')
-                self._log_stats('train', train_losses.avg, train_eval_scores.avg)
-                self._log_params()
-                self._log_images(input, target, output, 'train_')
-
+                    f'Training stats. Loss: {self.train_losses.avg}. Evaluation score: {self.train_losses.avg}')
+                self.web_logger.log_stats(self.train_losses.avg,self.train_losses.avg,self.num_iterations,"train")
+                self.web_logger.log_params(self.num_iterations)
+                self.web_logger.log_images(input, target, output,self.num_iterations, 'train_')
+                self.web_logger.log_images_upload(self.num_iterations, 'train_')
+            
             if self.should_stop():
+                self.run_validation_step(store_model=True)
                 return True
 
             self.num_iterations += 1
 
         return False
+
+    def run_validation_step(self,store_model):
+ # set the model in eval mode
+            self.model.eval()
+            # evaluate on validation set
+            eval_score,eval_loss = self.validate()
+            # set the model back to training mode
+            self.model.train()
+
+            # adjust learning rate if necessary
+            if isinstance(self.scheduler, ReduceLROnPlateau):
+                self.scheduler.step(eval_score)
+            else:
+                self.scheduler.step()
+            # log current learning rate
+            self.web_logger.log_learning_rate(self.optimizer.param_groups[0]['lr'],step=self.num_iterations)
+            # remember best validation metric
+            is_best = self._is_best_eval_score(eval_score)
+
+            # save checkpoint
+            if store_model:
+                self._save_checkpoint(is_best,train_loss=self.train_losses.avg,train_eval=self.train_losses.avg, val_loss=eval_loss,val_eval=eval_score)
 
     def should_stop(self):
         """
@@ -266,7 +282,8 @@ class UNet3DTrainer:
 
         val_losses = utils.RunningAverage()
         val_scores = utils.RunningAverage()
-
+        img_idx=int(len(self.loaders['val'])/self.num_of_img_per_val)
+        num_logged_img = 0
         with torch.no_grad():
             for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
@@ -276,8 +293,9 @@ class UNet3DTrainer:
                 output, loss = self._forward_pass(input, target, weight)
                 val_losses.update(loss.item(), self._batch_size(input))
 
-                if i % 100 == 0:
-                    self._log_images(input, target, output, 'val_')
+                if i % img_idx == 0 and num_logged_img<self.num_of_img_per_val:
+                    self.web_logger.log_images(input, target, output,self.num_iterations, 'val_')
+                    num_logged_img+=1
 
                 eval_score = self.eval_criterion(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
@@ -285,10 +303,11 @@ class UNet3DTrainer:
                 if self.validate_iters is not None and self.validate_iters <= i:
                     # stop validation
                     break
-
-            self._log_stats('val', val_losses.avg, val_scores.avg)
+            self.web_logger.log_images_upload(self.num_iterations, 'val_')
+            self.web_logger.log_stats(val_losses.avg,val_scores.avg,self.num_iterations,"val")
             logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
-            return val_scores.avg
+            return val_scores.avg, val_losses.avg
+
 
     def _split_training_batch(self, t):
         def _move_to_device(input):
@@ -329,7 +348,7 @@ class UNet3DTrainer:
 
         return is_best
 
-    def _save_checkpoint(self, is_best):
+    def _save_checkpoint(self, is_best,train_loss,train_eval,val_loss,val_eval):
         # remove `module` prefix from layer names when using `nn.DataParallel`
         # see: https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/20
         if isinstance(self.model, nn.DataParallel):
@@ -347,52 +366,24 @@ class UNet3DTrainer:
             'best_eval_score': self.best_eval_score,
             'optimizer_state_dict': self.optimizer.state_dict(),
         }, is_best, checkpoint_dir=self.checkpoint_dir)
+        self.web_logger.log_model(is_best,{
+            'num_epochs': self.num_epochs + 1,
+            'num_iterations': self.num_iterations,
+            'train_loss': train_loss,
+            'train_eval': train_eval,
+            'val_loss' : val_loss,
+            'val_eval' :val_eval,
+        })
 
-    def _log_lr(self):
-        lr = self.optimizer.param_groups[0]['lr']
-        self.writer.add_scalar('learning_rate', lr, self.num_iterations)
+    
 
-    def _log_stats(self, phase, loss_avg, eval_score_avg):
-        tag_value = {
-            f'{phase}_loss_avg': loss_avg,
-            f'{phase}_eval_score_avg': eval_score_avg
-        }
 
-        for tag, value in tag_value.items():
-            self.writer.add_scalar(tag, value, self.num_iterations)
 
-    def _log_params(self):
-        logger.info('Logging model parameters and gradients')
-        for name, value in self.model.named_parameters():
-            self.writer.add_histogram(name, value.data.cpu().numpy(), self.num_iterations)
-            self.writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), self.num_iterations)
 
-    def _log_images(self, input, target, prediction, prefix=''):
-        if self.model.training:
-            if isinstance(self.model, nn.DataParallel):
-                net = self.model.module
-            else:
-                net = self.model
 
-            if net.final_activation is not None:
-                prediction = net.final_activation(prediction)
+    
 
-        inputs_map = {
-            'inputs': input,
-            'targets': target,
-            'predictions': prediction
-        }
-        img_sources = {}
-        for name, batch in inputs_map.items():
-            if isinstance(batch, list) or isinstance(batch, tuple):
-                for i, b in enumerate(batch):
-                    img_sources[f'{name}{i}'] = b.data.cpu().numpy()
-            else:
-                img_sources[name] = batch.data.cpu().numpy()
-
-        for name, batch in img_sources.items():
-            for tag, image in self.tensorboard_formatter(name, batch):
-                self.writer.add_image(prefix + tag, image, self.num_iterations)
+   
 
     @staticmethod
     def _batch_size(input):
