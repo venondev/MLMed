@@ -1,7 +1,9 @@
 # Sample configuration file for training a 3D U-Net on a task of predicting the nuclei in 3D stack from the lightsheet
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
-
+run: 
+  name: first complete run
+  notes: first complete run
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
@@ -24,7 +26,12 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  acc_batchsize: 32
+  acc_batchsize: 8
+  #online_loger: WandBLogger or TensorboardLogger
+  online_logger: WandBLogger
+  verbose_train_validation: true
+  log_model_params: false
+  num_of_img_per_val: 3
   # path to the checkpoint directory
   checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
@@ -36,12 +43,14 @@ trainer:
   validate_after_iters: 100
   # how many iterations between tensorboard logging
   log_after_iters: 100
+  # vielfaches von validate 
+  store_after_val: 5
   # max number of epochs
   max_num_epochs: 200
   # max number of iterations
   max_num_iterations: 10000000
   # model with higher eval score is considered better
-  eval_score_higher_is_better: True
+  eval_score_higher_is_better: true
 # loss function configuration
 loss:
   # use BCE loss for training
@@ -68,7 +77,7 @@ lr_scheduler:
   # factor by which learning rate will be reduced
   factor: 0.2
   # number of *validation runs* with no improvement after which learning rate will be reduced
-  patience: 8
+  patience: 32
 
 # data loaders configuration
 loaders:
@@ -109,29 +118,25 @@ loaders:
         # subtract mean and divide by std dev
         - name: Standardize
         # randomly flips the volume in one of the axis
-        # - name: RandomFlip
-        # # randomly rotates the volume with 90 deg across a randomly chosen plane
-        # - name: RandomRotate90
-        # - name: RandomRotate
-        #   # rotate only in ZY plane due to anisotropy
-        #   axes: [[2, 1]]
-        #   # rotates by choosing random angle from [-30, 30] deg
-        #   angle_spectrum: 30
-        #   mode: reflect
-        # - name: ElasticDeformation
-        #   spline_order: 3
+        - name: RandomFlip
+        # randomly rotates the volume with 90 deg across a randomly chosen plane
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [[2, 1]]
+          # rotates by choosing random angle from [-30, 30] deg
+          angle_spectrum: 30
+          mode: reflect
         - name: ToTensor
           expand_dims: true
       label:
-        # - name: RandomFlip
-        # - name: RandomRotate90
-        # - name: RandomRotate
-        #   # rotate only in ZY plane due to anisotropy
-        #   axes: [[2, 1]]
-        #   angle_spectrum: 30
-        #   mode: reflect
-        # - name: ElasticDeformation
-        #   spline_order: 0
+        - name: RandomFlip
+        - name: RandomRotate90
+        - name: RandomRotate
+          # rotate only in ZY plane due to anisotropy
+          axes: [[2, 1]]
+          angle_spectrum: 30
+          mode: reflect
           # convert target volume to binary mask
         - name: ToTensor
           expand_dims: true

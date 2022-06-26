@@ -105,6 +105,10 @@ class RunningAverage:
         self.count += n
         self.sum += value * n
         self.avg = self.sum / self.count
+    def reset(self):
+        self.count = 0
+        self.sum = 0
+        self.avg = 0
 
 
 def find_maximum_patch_size(model, device):
@@ -270,14 +274,7 @@ def _find_masks(batch, min_size=10):
     return np.stack(result, axis=0)
 
 
-def get_tensorboard_formatter(formatter_config):
-    if formatter_config is None:
-        return DefaultTensorboardFormatter()
 
-    class_name = formatter_config['name']
-    m = importlib.import_module('pytorch3dunet.unet3d.utils')
-    clazz = getattr(m, class_name)
-    return clazz(**formatter_config)
 
 
 def expand_as_one_hot(input, C, ignore_index=None):
