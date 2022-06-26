@@ -149,9 +149,11 @@ class WandBLogger(OnlineLogger):
         for name, batch in inputs_map.items():
             img_sources[name] = batch.data.cpu().numpy()
 
-        slice_idx = z.shape[1] // 2
+        
         img_end = {}
         z = np.squeeze(img_sources["targets"])
+
+        slice_idx = z.shape[1] // 2
         an = np.asarray((np.where(z == 1)))
         p = int(an.shape[1]/2)
         if z.shape[1]>p:
