@@ -155,11 +155,11 @@ class WandBLogger(OnlineLogger):
 
         slice_idx = z.shape[1] // 2
         an = np.asarray((np.where(z == 1)))
-        p = int(an.shape[1]/2)
-        if z.shape[1]>p:
+        if an.shape[1]>0:
+            p=an[1,an.shape[1]//2]
             slice_idx=p
         for name, batch in img_sources.items():
-            img_end[name] = np.squeeze(batch)[slice_idx]
+            img_end[name] = np.squeeze(batch)[:,slice_idx]
 
         class_labels = {
             1: "aneurysm"
