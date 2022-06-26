@@ -182,7 +182,7 @@ class UNet3DTrainer:
             True if the training should be terminated immediately, False otherwise
         """
         self.train_losses = utils.RunningAverage()
-        self.train_losses = utils.RunningAverage()
+        self.train_eval_score = utils.RunningAverage()
 
         # sets the model in training mode
         self.model.train()
@@ -200,7 +200,7 @@ class UNet3DTrainer:
 
             if self.verbose_train_validation:
                 eval_score = self.eval_criterion(output, target)
-                self.train_losses.update(eval_score.item(), self._batch_size(input))
+                self.train_eval_score.update(eval_score.item(), self._batch_size(input))
 
 
             # compute gradients and update parameters
@@ -220,12 +220,12 @@ class UNet3DTrainer:
                 # compute eval criterion
                 if not self.skip_train_validation and not self.verbose_train_validation:
                     eval_score = self.eval_criterion(output, target)
-                    self.train_losses.update(eval_score.item(), self._batch_size(input))
+                    self.train_eval_score.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
                 logger.info(
-                    f'Training stats. Loss: {self.train_losses.avg}. Evaluation score: {self.train_losses.avg}')
-                self.web_logger.log_stats(self.train_losses.avg,self.train_losses.avg,self.num_iterations,"train")
+                    f'Training stats. Loss: {self.train_losses.avg}. Evaluation score: {self.train_eval_score.avg}')
+                self.web_logger.log_stats(self.train_losses.avg,self.train_eval_score.avg,self.num_iterations,"train")
                 self.web_logger.log_params(self.num_iterations)
                 self.web_logger.log_images(input, target, output,self.num_iterations, 'train_')
                 self.web_logger.log_images_upload(self.num_iterations, 'train_')
