@@ -170,6 +170,7 @@ class BCEDiceLoss(nn.Module):
 
     def __init__(self, alpha, beta):
         super(BCEDiceLoss, self).__init__()
+        assert (alpha+beta) == 1
         self.alpha = alpha
         self.bce = nn.BCEWithLogitsLoss()
         self.beta = beta
