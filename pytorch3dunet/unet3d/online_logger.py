@@ -25,6 +25,29 @@ class OnlineLogger():
         raise NotImplementedError
     def log_images(self, input, target, prediction, step, prefix):
         raise NotImplementedError
+    def log_non(self,step):
+        raise NotImplementedError
+
+class DisableLogger():
+    def __init__(self, model, config):
+        return
+
+    def log_stats(self, loss, eval, step, prefix):
+        return
+
+    def log_params(self,step):
+        return
+    def log_images_upload(self,step, prefix):
+        return
+
+    def log_learning_rate(self, lr, step):
+        return
+    def log_model(self,is_best,metadata):
+        return
+    def log_images(self, input, target, prediction, step, prefix):
+        return
+    def log_non(self,step):
+        return
 
 class TensorboardLogger(OnlineLogger):
     def __init__(self, model, config):
@@ -80,7 +103,8 @@ class TensorboardLogger(OnlineLogger):
         for name, batch in img_sources.items():
             for tag, image in self.tensorboard_formatter(name, batch):
                 self.writer.add_image(prefix + tag, image, step)
-    
+    def log_non(self,step):
+        return
 def get_tensorboard_formatter(formatter_config):
     if formatter_config is None:
         return DefaultTensorboardFormatter()
@@ -102,8 +126,6 @@ class WandBLogger(OnlineLogger):
             wandb.watch(model, log_freq=config["trainer"]["log_after_iters"])
         self.file_path=config["trainer"]["checkpoint_dir"]+"/last_checkpoint.pytorch"
         self.temp_images=[]
-
-        
     def log_stats(self, loss, eval, step, prefix):
         wandb.log({prefix+"_loss": loss, prefix +
                   "_eval_score": eval}, step=step)
@@ -116,7 +138,8 @@ class WandBLogger(OnlineLogger):
             wandb.log_artifact(art, aliases=["latest", "best"])
             
         else:
-            wandb.log_artifact(art)
+            pass
+            #wandb.log_artifact(art)
 
 
     def log_params(self,step):
@@ -176,6 +199,8 @@ class WandBLogger(OnlineLogger):
             }
         })
         self.temp_images.append(masked_image)
+    def log_non(self,step):
+        wandb.log({"_steps_": step}, step=step)
         
 
 

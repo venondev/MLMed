@@ -233,6 +233,10 @@ class UNet3DTrainer:
             if self.should_stop():
                 self.run_validation_step(store_model=True)
                 return True
+            #wandb only upload on increasing steps
+            #logging _non_ as dummy for the next step 
+            if self.num_iterations % self.validate_after_iters == 0 or self.num_iterations % self.log_after_iters == 0:
+                self.web_logger.log_non(self.num_iterations+1)
 
             self.num_iterations += 1
 
