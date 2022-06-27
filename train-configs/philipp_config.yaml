@@ -182,7 +182,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data_norm/train
+      - data_norm/val
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
