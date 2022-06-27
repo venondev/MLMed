@@ -2,7 +2,7 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 run: 
-  name: first complete run
+  name: Add Augmentation
   notes: first complete run
 # model configuration
 model:
@@ -31,7 +31,7 @@ trainer:
   online_logger: WandBLogger
   verbose_train_validation: true
   log_model_params: false
-  num_of_img_per_val: 3
+  num_of_img_per_val: 6
   # path to the checkpoint directory
   checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
@@ -40,11 +40,11 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 100
+  validate_after_iters: 200
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # vielfaches von validate 
-  store_after_val: 5
+  store_after_val: 3
   # max number of epochs
   max_num_epochs: 200
   # max number of iterations
@@ -55,8 +55,8 @@ trainer:
 loss:
   # use BCE loss for training
   name: BCEDiceLoss
-  alphs: 1
-  beta: 1
+  alphs: 0.5
+  beta: 0.5
 
 # optimizer configuration
 optimizer:
@@ -75,9 +75,9 @@ lr_scheduler:
   # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
   mode: max
   # factor by which learning rate will be reduced
-  factor: 0.2
+  factor: 0.5
   # number of *validation runs* with no improvement after which learning rate will be reduced
-  patience: 32
+  patience: 5
 
 # data loaders configuration
 loaders:
@@ -99,7 +99,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - data_h5/train
+      - data_norm/train
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -117,27 +117,64 @@ loaders:
       raw:
         # subtract mean and divide by std dev
         - name: Standardize
-        # randomly flips the volume in one of the axis
+        - name: RandomContrast
+        # - name: Perlin
+        #   # Size of noise, 64 gives noise which is similar to noise in background of cases
+        #   res: [64, 64, 64]
+        #   # Shape of generated noise. Needs to be >= patch size and divisible by res
+        #   shape: [256, 256, 256]
+        #   # Mix factor, orig_image + alpha * noise
+        #   alpha: 0.1
+        #   randomly flips the volume in one of the axis
+        - name: AneuInsertion
+          # Path to pick examples from
+          path: data_norm/train
+          # Padding around an aneurysm
+          padding: 10
+          # How many insert iterations / How many aneurysms to insert
+          iters: 3
+          # label or raw
+          type: raw
+          # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
+          crop: False
+
+        # - name: Insertion
+        #   # Path to pick examples from
+        #   path: data_norm/train
+        #   # Minimum size of inserted random patch
+        #   min_patch_size: [32, 32, 32]
+        #   # Maximum size of inserted random patch
+        #   max_patch_size: [128, 128, 128]
+        #   # Number of iterations / How many random patches to insert
+        #   iters: 3
+        #   # raw / label
+        #   type: raw
+        
+
         - name: RandomFlip
-        # randomly rotates the volume with 90 deg across a randomly chosen plane
-        - name: RandomRotate90
         - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [[2, 1]]
-          # rotates by choosing random angle from [-30, 30] deg
-          angle_spectrum: 30
+          angle_spectrum: 180
           mode: reflect
         - name: ToTensor
           expand_dims: true
       label:
+        - name: AneuInsertion
+          path: data_norm/train
+          padding: 10
+          iters: 3
+          type: label
+          crop: False
+        # - name: Insertion
+        #   path: data_norm/train
+        #   min_patch_size: [32, 32, 32]
+        #   max_patch_size: [128, 128, 128]
+        #   iters: 3
+        #   type: label
+
         - name: RandomFlip
-        - name: RandomRotate90
         - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [[2, 1]]
-          angle_spectrum: 30
+          angle_spectrum: 180
           mode: reflect
-          # convert target volume to binary mask
         - name: ToTensor
           expand_dims: true
 
@@ -145,7 +182,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data_h5/validation
+      - data_norm/val
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:

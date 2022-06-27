@@ -174,6 +174,10 @@ class UNet3DTrainer:
             logger.info(f"Exit training by pressing CTRL+C ...")
             self.run_validation_step(store_model=True)
             
+    def eval(self,output, target):
+        if self.model.final_activation is not None:
+            output=self.model.final_activation(output)
+        return self.eval_criterion(output, target)
 
     def train(self):
         """Trains the model for 1 epoch.
@@ -195,11 +199,10 @@ class UNet3DTrainer:
             input, target, weight = self._split_training_batch(t)
 
             output, loss = self._forward_pass(input, target, weight)
-
             self.train_losses.update(loss.item(), self._batch_size(input))
 
             if self.verbose_train_validation:
-                eval_score = self.eval_criterion(output, target)
+                eval_score = self.eval(output, target)
                 self.train_eval_score.update(eval_score.item(), self._batch_size(input))
 
 
@@ -219,7 +222,7 @@ class UNet3DTrainer:
             if self.num_iterations % self.log_after_iters == 0:
                 # compute eval criterion
                 if not self.skip_train_validation and not self.verbose_train_validation:
-                    eval_score = self.eval_criterion(output, target)
+                    eval_score = self.eval(output, target)
                     self.train_eval_score.update(eval_score.item(), self._batch_size(input))
 
                 # log stats, params and images
@@ -230,9 +233,14 @@ class UNet3DTrainer:
                 self.web_logger.log_images(input, target, output,self.num_iterations, 'train_')
                 self.web_logger.log_images_upload(self.num_iterations, 'train_')
             
+            
             if self.should_stop():
                 self.run_validation_step(store_model=True)
                 return True
+            #wandb only upload on increasing steps
+            #logging _non_ as dummy for the next step 
+            if self.num_iterations % self.validate_after_iters == 0 or self.num_iterations % self.log_after_iters == 0:
+                self.web_logger.log_non(self.num_iterations+1)
 
             self.num_iterations += 1
 
@@ -297,7 +305,7 @@ class UNet3DTrainer:
                     self.web_logger.log_images(input, target, output,self.num_iterations, 'val_')
                     num_logged_img+=1
 
-                eval_score = self.eval_criterion(output, target)
+                eval_score = self.eval(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
 
                 if self.validate_iters is not None and self.validate_iters <= i:
@@ -327,6 +335,7 @@ class UNet3DTrainer:
     def _forward_pass(self, input, target, weight=None):
         # forward pass
         output = self.model(input)
+        
 
         # compute the loss
         if weight is None:

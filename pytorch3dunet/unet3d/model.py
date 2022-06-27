@@ -89,8 +89,9 @@ class Abstract3DUNet(nn.Module):
         x = self.final_conv(x)
 
         # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs logits
-        if not self.training and self.final_activation is not None:
-            x = self.final_activation(x)
+        # call final_activation in main to get correct validation loss
+        #if not self.training and self.final_activation is not None:
+            #x = self.final_activation(x)
 
         return x
 

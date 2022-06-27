@@ -187,7 +187,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
                               raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
                               label_internal_path=dataset_config.get('label_internal_path', 'label'),
                               weight_internal_path=dataset_config.get('weight_internal_path', None),
-                              global_normalization=dataset_config.get('global_normalization', None))
+                              global_normalization=dataset_config.get('global_normalization', True))
                 datasets.append(dataset)
             except Exception:
                 logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
