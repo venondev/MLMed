@@ -143,6 +143,11 @@ class AneuInsertion:
 
             aneu_shape = np.array(aneu.shape)
             m_shape = np.array(m.shape)
+            # Random aneurysm to big -> skip insertion
+            if (aneu_shape>m_shape).any():
+                return m
+
+            
 
             if self.crop:
                 # Allow aneurysm to be placed slightly outside the area of the current case
@@ -224,7 +229,6 @@ class Perlin:
         return ((1 - t[:, :, :, 2]) * n0 + t[:, :, :, 2] * n1)
 
     def __call__(self, x):
-        print(x.shape)
         noise = self.generate_perlin_noise_3d()
         n, l, k = x.shape
         return x + self.alpha * noise[:n, :l, :k]
@@ -251,6 +255,7 @@ class Insertion:
         self.iters = iters
         self.type = type
         self.cases = os.listdir(self.path)
+        
 
     def load_rand_case(self):
         pick = self.random_state.choice(self.cases)
