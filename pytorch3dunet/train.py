@@ -13,6 +13,8 @@ logger = get_logger('TrainingSetup')
 def main():
     # Load and log experiment configuration
     config,store_slices,test_run = load_config()
+    if test_run:
+        config["trainer"]["online_logger"]="DisableLogger"
     logger.info(config)
 
     manual_seed = config.get('manual_seed', None)
