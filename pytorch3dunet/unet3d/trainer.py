@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-
 from pytorch3dunet.datasets.utils import get_train_loaders
 import numpy as np
 from pytorch3dunet.unet3d import online_logger
@@ -18,7 +17,7 @@ from . import utils
 logger = get_logger('UNet3DTrainer')
 
 
-def create_trainer(config,test_run=False):
+def create_trainer(config, test_run=False):
     # Create the model
     model = get_model(config['model'])
     # use DataParallel if more than 1 GPU available
@@ -49,7 +48,7 @@ def create_trainer(config,test_run=False):
     lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
 
     trainer_config = config['trainer']
-    web_logger=online_logger.get_class(trainer_config["online_logger"])(model,config)
+    web_logger = online_logger.get_class(trainer_config["online_logger"])(model, config)
 
     # Create trainer
     resume = trainer_config.pop('resume', None)
@@ -99,26 +98,26 @@ class UNet3DTrainer:
     """
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
-                 eval_criterion,web_logger, device, loaders, checkpoint_dir,verbose_train_validation,
+                 eval_criterion, web_logger, device, loaders, checkpoint_dir, verbose_train_validation,
                  max_num_epochs, max_num_iterations,
-                 acc_batchsize=1,store_after_val=100,
-                 validate_after_iters=200, log_after_iters=100,num_of_img_per_val=1,
+                 acc_batchsize=1, store_after_val=100,
+                 validate_after_iters=200, log_after_iters=100, num_of_img_per_val=1,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, skip_train_validation=False,
                  resume=None, pre_trained=None, **kwargs):
-        self.web_logger=web_logger
+        self.web_logger = web_logger
         self.acc_batchsize = acc_batchsize
-        self.verbose_train_validation=verbose_train_validation,
+        self.verbose_train_validation = verbose_train_validation,
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
         self.loss_criterion = loss_criterion
         self.eval_criterion = eval_criterion
-        self.store_after_val=store_after_val
+        self.store_after_val = store_after_val
         self.device = device
         self.loaders = loaders
         self.checkpoint_dir = checkpoint_dir
-        self.num_of_img_per_val=num_of_img_per_val
+        self.num_of_img_per_val = num_of_img_per_val
         self.max_num_epochs = max_num_epochs
         self.max_num_iterations = max_num_iterations
         self.validate_after_iters = validate_after_iters
@@ -134,7 +133,6 @@ class UNet3DTrainer:
             self.best_eval_score = float('-inf')
         else:
             self.best_eval_score = float('+inf')
-
 
         self.num_iterations = num_iterations
         self.num_epochs = num_epoch
@@ -165,7 +163,7 @@ class UNet3DTrainer:
 
                 if should_terminate:
                     logger.info('Stopping criterion is satisfied. Finishing training')
-                    
+
                     return
 
                 self.num_epochs += 1
@@ -173,10 +171,10 @@ class UNet3DTrainer:
         except KeyboardInterrupt:
             logger.info(f"Exit training by pressing CTRL+C ...")
             self.run_validation_step(store_model=True)
-            
-    def eval(self,output, target):
+
+    def eval(self, output, target):
         if self.model.final_activation is not None:
-            output=self.model.final_activation(output)
+            output = self.model.final_activation(output)
         return self.eval_criterion(output, target)
 
     def train(self):
@@ -205,19 +203,18 @@ class UNet3DTrainer:
                 eval_score = self.eval(output, target)
                 self.train_eval_score.update(eval_score.item(), self._batch_size(input))
 
-
             # compute gradients and update parameters
-            loss/=self.acc_batchsize
-            
-            loss.backward()
-            
+            loss /= self.acc_batchsize
 
-            if self.num_iterations % self.acc_batchsize == 0 or self.acc_batchsize==1:
+            loss.backward()
+
+            if self.num_iterations % self.acc_batchsize == 0 or self.acc_batchsize == 1:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
 
             if self.num_iterations % self.validate_after_iters == 0:
-                self.run_validation_step(store_model=self.num_iterations %(self.store_after_val*self.validate_after_iters)==0)
+                self.run_validation_step(
+                    store_model=self.num_iterations % (self.store_after_val * self.validate_after_iters) == 0)
 
             if self.num_iterations % self.log_after_iters == 0:
                 # compute eval criterion
@@ -228,45 +225,46 @@ class UNet3DTrainer:
                 # log stats, params and images
                 logger.info(
                     f'Training stats. Loss: {self.train_losses.avg}. Evaluation score: {self.train_eval_score.avg}')
-                self.web_logger.log_stats(self.train_losses.avg,self.train_eval_score.avg,self.num_iterations,"train")
+                self.web_logger.log_stats(self.train_losses.avg, self.train_eval_score.avg, self.num_iterations,
+                                          "train")
                 self.web_logger.log_params(self.num_iterations)
-                self.web_logger.log_images(input, target, output,self.num_iterations, 'train_')
+                self.web_logger.log_images(input, target, output, self.num_iterations, 'train_')
                 self.web_logger.log_images_upload(self.num_iterations, 'train_')
-            
-            
+
             if self.should_stop():
                 self.run_validation_step(store_model=True)
                 return True
-            #wandb only upload on increasing steps
-            #logging _non_ as dummy for the next step 
+            # wandb only upload on increasing steps
+            # logging _non_ as dummy for the next step
             if self.num_iterations % self.validate_after_iters == 0 or self.num_iterations % self.log_after_iters == 0:
-                self.web_logger.log_non(self.num_iterations+1)
+                self.web_logger.log_non(self.num_iterations + 1)
 
             self.num_iterations += 1
 
         return False
 
-    def run_validation_step(self,store_model):
- # set the model in eval mode
-            self.model.eval()
-            # evaluate on validation set
-            eval_score,eval_loss = self.validate()
-            # set the model back to training mode
-            self.model.train()
+    def run_validation_step(self, store_model):
+        # set the model in eval mode
+        self.model.eval()
+        # evaluate on validation set
+        eval_score, eval_loss = self.validate()
+        # set the model back to training mode
+        self.model.train()
 
-            # adjust learning rate if necessary
-            if isinstance(self.scheduler, ReduceLROnPlateau):
-                self.scheduler.step(eval_score)
-            else:
-                self.scheduler.step()
-            # log current learning rate
-            self.web_logger.log_learning_rate(self.optimizer.param_groups[0]['lr'],step=self.num_iterations)
-            # remember best validation metric
-            is_best = self._is_best_eval_score(eval_score)
+        # adjust learning rate if necessary
+        if isinstance(self.scheduler, ReduceLROnPlateau):
+            self.scheduler.step(eval_score)
+        else:
+            self.scheduler.step()
+        # log current learning rate
+        self.web_logger.log_learning_rate(self.optimizer.param_groups[0]['lr'], step=self.num_iterations)
+        # remember best validation metric
+        is_best = self._is_best_eval_score(eval_score)
 
-            # save checkpoint
-            if store_model:
-                self._save_checkpoint(is_best,train_loss=self.train_losses.avg,train_eval=self.train_losses.avg, val_loss=eval_loss,val_eval=eval_score)
+        # save checkpoint
+        if store_model:
+            self._save_checkpoint(is_best, train_loss=self.train_losses.avg, train_eval=self.train_losses.avg,
+                                  val_loss=eval_loss, val_eval=eval_score)
 
     def should_stop(self):
         """
@@ -290,7 +288,7 @@ class UNet3DTrainer:
 
         val_losses = utils.RunningAverage()
         val_scores = utils.RunningAverage()
-        img_idx=int(len(self.loaders['val'])/self.num_of_img_per_val)
+        img_idx = int(len(self.loaders['val']) / self.num_of_img_per_val)
         num_logged_img = 0
         with torch.no_grad():
             for i, t in enumerate(self.loaders['val']):
@@ -301,9 +299,9 @@ class UNet3DTrainer:
                 output, loss = self._forward_pass(input, target, weight)
                 val_losses.update(loss.item(), self._batch_size(input))
 
-                if i % img_idx == 0 and num_logged_img<self.num_of_img_per_val:
-                    self.web_logger.log_images(input, target, output,self.num_iterations, 'val_')
-                    num_logged_img+=1
+                if i % img_idx == 0 and num_logged_img < self.num_of_img_per_val:
+                    self.web_logger.log_images(input, target, output, self.num_iterations, 'val_')
+                    num_logged_img += 1
 
                 eval_score = self.eval(output, target)
                 val_scores.update(eval_score.item(), self._batch_size(input))
@@ -312,10 +310,9 @@ class UNet3DTrainer:
                     # stop validation
                     break
             self.web_logger.log_images_upload(self.num_iterations, 'val_')
-            self.web_logger.log_stats(val_losses.avg,val_scores.avg,self.num_iterations,"val")
+            self.web_logger.log_stats(val_losses.avg, val_scores.avg, self.num_iterations, "val")
             logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
             return val_scores.avg, val_losses.avg
-
 
     def _split_training_batch(self, t):
         def _move_to_device(input):
@@ -335,7 +332,6 @@ class UNet3DTrainer:
     def _forward_pass(self, input, target, weight=None):
         # forward pass
         output = self.model(input)
-        
 
         # compute the loss
         if weight is None:
@@ -357,7 +353,7 @@ class UNet3DTrainer:
 
         return is_best
 
-    def _save_checkpoint(self, is_best,train_loss,train_eval,val_loss,val_eval):
+    def _save_checkpoint(self, is_best, train_loss, train_eval, val_loss, val_eval):
         # remove `module` prefix from layer names when using `nn.DataParallel`
         # see: https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/20
         if isinstance(self.model, nn.DataParallel):
@@ -375,24 +371,14 @@ class UNet3DTrainer:
             'best_eval_score': self.best_eval_score,
             'optimizer_state_dict': self.optimizer.state_dict(),
         }, is_best, checkpoint_dir=self.checkpoint_dir)
-        self.web_logger.log_model(is_best,{
+        self.web_logger.log_model(is_best, {
             'num_epochs': self.num_epochs + 1,
             'num_iterations': self.num_iterations,
             'train_loss': train_loss,
             'train_eval': train_eval,
-            'val_loss' : val_loss,
-            'val_eval' :val_eval,
+            'val_loss': val_loss,
+            'val_eval': val_eval,
         })
-
-    
-
-
-
-
-
-    
-
-   
 
     @staticmethod
     def _batch_size(input):
