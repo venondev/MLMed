@@ -151,7 +151,7 @@ class WandBLogger(OnlineLogger):
         }
 
         for key in eval_detailed:
-            log_dict[f"{prefix}_{key}"] = eval_detailed[key]
+            log_dict[f"detailed/{prefix}_{key}"] = eval_detailed[key]
 
         wandb.log(log_dict, step=step)
 
