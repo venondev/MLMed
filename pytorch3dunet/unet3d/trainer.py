@@ -315,13 +315,13 @@ class UNet3DTrainer:
                     # stop validation
                     break
 
-            eval_score, eval_score_detailed = self.eval_score.avg
+            eval_score, eval_score_detailed = val_scores.avg
             if hasattr(self.eval_criterion, "compute_final"):
-                eval_score, eval_score_detailed = self.eval_criterion.compute_final(self.eval_score)
+                eval_score, eval_score_detailed = self.eval_criterion.compute_final(val_scores)
 
             self.web_logger.log_images_upload(self.num_iterations, 'val_')
             self.web_logger.log_stats(val_losses.avg, eval_score, eval_score_detailed, self.num_iterations, "val")
-            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {eval_score}, {self.eval_score}')
+            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {eval_score}, {val_scores}')
             return eval_score, val_losses.avg
 
     def _split_training_batch(self, t):

@@ -2,7 +2,7 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 run:
-  name: Score Test 2
+  name: Score with perlin noise and fixed val score
   notes: first complete run
 # model configuration
 model:
@@ -40,9 +40,9 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 25
+  validate_after_iters: 200
   # how many iterations between tensorboard logging
-  log_after_iters: 5
+  log_after_iters: 100
   # vielfaches von validate
   store_after_val: 3
   # max number of epochs
@@ -99,7 +99,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - data/train_s
+      - data/train
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
@@ -127,6 +127,13 @@ loaders:
           type: raw
           # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
           crop: False
+        - name: Perlin
+          # Size of noise, 64 gives noise which is similar to noise in background of cases
+          res: [64, 64, 64]
+          # Shape of generated noise. Needs to be >= patch size and divisible by res
+          shape: [128, 128, 128]
+          # Mix factor, orig_image + alpha * noise
+          alpha: 0.1
         - name: RandomContrast
         - name: RandomFlip
         - name: RandomRotate
@@ -152,7 +159,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data/val_s
+      - data/val
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
