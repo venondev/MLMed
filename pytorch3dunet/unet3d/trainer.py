@@ -184,7 +184,7 @@ class UNet3DTrainer:
             True if the training should be terminated immediately, False otherwise
         """
         self.train_losses = utils.RunningAverage()
-        self.train_eval_score = utils.RunningAverage()
+        self.eval_score = utils.EvalScoreTracker()
 
         # sets the model in training mode
         self.model.train()
@@ -201,7 +201,7 @@ class UNet3DTrainer:
 
             if self.verbose_train_validation:
                 eval_score = self.eval(output, target)
-                self.train_eval_score.update(eval_score.item(), self._batch_size(input))
+                self.eval_score.update(eval_score, self._batch_size(input))
 
             # compute gradients and update parameters
             loss /= self.acc_batchsize
@@ -220,12 +220,16 @@ class UNet3DTrainer:
                 # compute eval criterion
                 if not self.skip_train_validation and not self.verbose_train_validation:
                     eval_score = self.eval(output, target)
-                    self.train_eval_score.update(eval_score.item(), self._batch_size(input))
+                    self.eval_score.update(eval_score, self._batch_size(input))
+
+                eval_score, eval_score_detailed = self.eval_score.avg
+                if hasattr(self.eval_criterion, "compute_final"):
+                    eval_score, eval_score_detailed = self.eval_criterion.compute_final(self.eval_score)
 
                 # log stats, params and images
                 logger.info(
-                    f'Training stats. Loss: {self.train_losses.avg}. Evaluation score: {self.train_eval_score.avg}')
-                self.web_logger.log_stats(self.train_losses.avg, self.train_eval_score.avg, self.num_iterations,
+                    f'Training stats. Loss: {self.train_losses.avg}. Evaluation score: {eval_score}, {self.eval_score}')
+                self.web_logger.log_stats(self.train_losses.avg, eval_score, eval_score_detailed, self.num_iterations,
                                           "train")
                 self.web_logger.log_params(self.num_iterations)
                 self.web_logger.log_images(input, target, output, self.num_iterations, 'train_')
@@ -287,7 +291,8 @@ class UNet3DTrainer:
         logger.info('Validating...')
 
         val_losses = utils.RunningAverage()
-        val_scores = utils.RunningAverage()
+        val_scores = utils.EvalScoreTracker()
+
         img_idx = int(len(self.loaders['val']) / self.num_of_img_per_val)
         num_logged_img = 0
         with torch.no_grad():
@@ -304,15 +309,20 @@ class UNet3DTrainer:
                     num_logged_img += 1
 
                 eval_score = self.eval(output, target)
-                val_scores.update(eval_score.item(), self._batch_size(input))
+                val_scores.update(eval_score, self._batch_size(input))
 
                 if self.validate_iters is not None and self.validate_iters <= i:
                     # stop validation
                     break
+
+            eval_score, eval_score_detailed = self.eval_score.avg
+            if hasattr(self.eval_criterion, "compute_final"):
+                eval_score, eval_score_detailed = self.eval_criterion.compute_final(self.eval_score)
+
             self.web_logger.log_images_upload(self.num_iterations, 'val_')
-            self.web_logger.log_stats(val_losses.avg, val_scores.avg, self.num_iterations, "val")
-            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {val_scores.avg}')
-            return val_scores.avg, val_losses.avg
+            self.web_logger.log_stats(val_losses.avg, eval_score, eval_score_detailed, self.num_iterations, "val")
+            logger.info(f'Validation finished. Loss: {val_losses.avg}. Evaluation score: {eval_score}, {self.eval_score}')
+            return eval_score, val_losses.avg
 
     def _split_training_batch(self, t):
         def _move_to_device(input):

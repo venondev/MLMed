@@ -4,6 +4,8 @@ import numpy as np
 import torch
 from skimage import measure
 from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio, mean_squared_error
+import torch
+from monai.metrics import compute_hausdorff_distance, compute_average_surface_distance
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
@@ -27,6 +29,75 @@ class DiceCoefficient:
     def __call__(self, input, target):
         # Average across channels in order to get the final score
         return torch.mean(compute_per_channel_dice(input, target, epsilon=self.epsilon))
+
+
+def compute_volume_bias(volume_gt, volume_pred):
+    return 1 / np.mean(np.abs(volume_gt - volume_pred))
+
+
+def compute_volume_std_dev(volume_gt, volume_pred):
+    return 1 / np.std(volume_gt - volume_pred)
+
+
+def compute_volume_pearson(volume_gt, volume_pred):
+    return (np.corrcoef(volume_gt, volume_pred)[0, 1] + 1) / 2
+
+
+class MedMl:
+
+    def __init__(self, skip_channels=(), ignore_index=None, **kwargs):
+        self.compute_jaccard = MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
+
+    def __call__(self, input, target):
+        assert input.dim() == 5
+
+        assert input.size() == target.size()
+
+        input_bin = (input > 0.5).long()
+
+        target_empty = (target.max() == 0).item()
+        pred_empty = (input_bin.max() == 0).item()
+
+        jaccard_score = self.compute_jaccard(input, target)
+        # Wenn eins target oder pred kein aneursyma haben scores festlegen
+        if target_empty and pred_empty:
+            hausdorff_score = 1
+            avg_score = 1
+        elif pred_empty or target_empty:
+            hausdorff_score = 0
+            avg_score = 0
+        else:
+            hausdorff_score = 1 / compute_hausdorff_distance(input_bin, target)
+            avg_score = 1 / compute_average_surface_distance(input_bin, target)
+
+        detailed_score = {
+            "hausdorff": hausdorff_score,
+            "jaccard": jaccard_score,
+            "avg_dist": avg_score
+        }
+
+        # Values for final calculation
+        volume_gt = []
+        volume_pred = []
+        for _input, _target in zip(input, target):
+            volume_gt.append(target.sum().item())
+            volume_pred.append(input.sum().item())
+
+        return detailed_score, (volume_gt, volume_pred)
+
+    def compute_final(self, eval_tracker):
+        volume_gt = np.concatenate([x[0] for x in eval_tracker.cache])
+        volume_pred = np.concatenate([x[1] for x in eval_tracker.cache])
+
+        eval_tracker.scores["bias"] = compute_volume_bias(volume_gt, volume_pred)
+        eval_tracker.scores["std"] = compute_volume_std_dev(volume_gt, volume_pred)
+        eval_tracker.scores["pearson"] = compute_volume_pearson(volume_gt, volume_pred)
+
+        _, detailed = eval_tracker.avg
+        total = (detailed["bias"] + detailed["std"] + detailed["pearson"] + detailed["hausdorff"]
+                 + detailed["jaccard"] + detailed["avg_dist"]) / 6
+
+        return total, detailed
 
 
 class MeanIoU:

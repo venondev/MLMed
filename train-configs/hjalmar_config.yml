@@ -1,30 +1,64 @@
-# Sample configuration file for training a 3D U-Net on a task of predicting the boundaries in 3D stack of the Arabidopsis
-# ovules acquired with the confocal microscope. Training done with a combination of Binary Cross-Entropy and DiceLoss.
-# Download train data from: https://osf.io/x9yns/
-# Download validation data from: https://osf.io/xp5uf/
-# Download test data from: https://osf.io/8jz7e/
+# Sample configuration file for training a 3D U-Net on a task of predicting the nuclei in 3D stack from the lightsheet
+# microscope. Training done with Binary Cross-Entropy.
+# Training and validation data can be downloaded from: https://osf.io/thxzn/
+run:
+  name: Score Test 2
+  notes: first complete run
+# model configuration
 model:
+  # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
   in_channels: 1
   # number of output channels
   out_channels: 1
-  # determines the order of operators in a single layer (crg - Conv3d+ReLU+GroupNorm)
-  layer_order: cr
-  # initial number of feature maps
-  f_maps: 4
-  num_levels: 2
+  # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
+  layer_order: gcr
+  # number of features at each level of the U-Net
+  f_maps: 32
   # number of groups in the groupnorm
   num_groups: 8
-  # apply element-wise nn.Sigmoid after the final 1x1x1 convolution, otherwise apply nn.Softmax
+  # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
+  # this is only relevant during inference, during training the network outputs logits and it is up to the loss function
+  # to normalize with Sigmoid or Softmax
   final_sigmoid: true
-# loss function to be used during training
+  # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
+  is_segmentation: true
+# trainer configuration
+trainer:
+  acc_batchsize: 8
+  #online_loger: WandBLogger or TensorboardLogger
+  online_logger: WandBLogger
+  verbose_train_validation: true
+  log_model_params: false
+  num_of_img_per_val: 6
+  # path to the checkpoint directory
+  checkpoint_dir: checkpoints
+  # path to latest checkpoint; if provided the training will be resumed from that checkpoint
+  resume: null
+  # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
+  # make sure to decrease the learning rate in the optimizer config accordingly
+  pre_trained: null
+  # how many iterations between validations
+  validate_after_iters: 25
+  # how many iterations between tensorboard logging
+  log_after_iters: 5
+  # vielfaches von validate
+  store_after_val: 3
+  # max number of epochs
+  max_num_epochs: 200
+  # max number of iterations
+  max_num_iterations: 10000000
+  # model with higher eval score is considered better
+  eval_score_higher_is_better: true
+# loss function configuration
 loss:
+  # use BCE loss for training
   name: BCEDiceLoss
-  # a target value that is ignored and does not contribute to the input gradient
-  ignore_index: null
-  # skip the last channel in the target (i.e. when last channel contains data not relevant for the loss)
-  skip_last_target: false
+  alphs: 0.5
+  beta: 0.5
+
+# optimizer configuration
 optimizer:
   # initial learning rate
   learning_rate: 0.0002
@@ -32,75 +66,109 @@ optimizer:
   weight_decay: 0.00001
 # evaluation metric
 eval_metric:
-  # use AdaptedRandError metric
-  name: BoundaryAdaptedRandError
-  # probability maps threshold
-  threshold: 0.4
-  # use the last target channel to compute the metric
-  use_last_target: true
-  # use only the first channel for computing the metric
-  use_first_input: true
+  # use average precision metric
+  name: MedMl
+# learning rate scheduler configuration
 lr_scheduler:
+  # reduce learning rate when evaluation metric plateaus
   name: ReduceLROnPlateau
-  # make sure to use the 'min' mode cause lower AdaptedRandError is better
-  mode: min
+  # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
+  mode: max
+  # factor by which learning rate will be reduced
   factor: 0.5
-  patience: 30
-trainer:
-  # model with lower eval score is considered better
-  eval_score_higher_is_better: False
-  # path to the checkpoint directory
-  checkpoint_dir: CHECKPOINT_DIR
-  # path to latest checkpoint; if provided the training will be resumed from that checkpoint
-  resume: null
-  # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
-  pre_trained: null
-  # how many iterations between validations
-  validate_after_iters: 1000
-  # how many iterations between tensorboard logging
-  log_after_iters: 500
-  # max number of epochs
-  max_num_epochs: 100
-  # max number of iterations
-  max_num_iterations: 150
-# Configure training and validation loaders
+  # number of *validation runs* with no improvement after which learning rate will be reduced
+  patience: 5
+
+# data loaders configuration
 loaders:
+  # class of the HDF5 dataset, currently StandardHDF5Dataset and LazyHDF5Dataset are supported.
+  # When using LazyHDF5Dataset make sure to set `num_workers = 1`, due to a bug in h5py which corrupts the data
+  # when reading from multiple threads.
+  dataset: OwnLazyHDF5Dataset
+  # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
+  batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 8
   # path to the raw data within the H5
   raw_internal_path: /raw
   # path to the the label data withtin the H5
   label_internal_path: /label
+  # path to the pixel-wise weight map withing the H5 if present
+  weight_internal_path: null
   # configuration of the train loader
   train:
-    # path to the training datasets
+    # paths to the training datasets
     file_paths:
-      - data/training 
+      - data/train_s
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [128, 128, 128]
+      # train stride between patches
+      stride_shape: [64, 64, 64]
+      # minimum volume of the labels in the patch
+      threshold: 0
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
 
     transformer:
       raw:
-        - name: Standardize
+        # subtract mean and divide by std dev
+        - name: AneuInsertion
+          # Path to pick examples from
+          path: data/train_s
+          # Padding around an aneurysm
+          padding: 10
+          # How many insert iterations / How many aneurysms to insert
+          iters: 3
+          # label or raw
+          type: raw
+          # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
+          crop: False
+        - name: RandomContrast
+        - name: RandomFlip
         - name: RandomRotate
-          # rotate only in ZY plane due to anisotropy
-          axes: [[2, 1]]
-          angle_spectrum: 45
+          angle_spectrum: 180
           mode: reflect
         - name: ToTensor
           expand_dims: true
       label:
+        - name: AneuInsertion
+          path: data/train_s
+          padding: 10
+          iters: 3
+          type: label
+          crop: False
+        - name: RandomFlip
+        - name: RandomRotate
+          angle_spectrum: 180
+          mode: reflect
         - name: ToTensor
           expand_dims: true
 
   # configuration of the val loader
   val:
-    # path to the val datasets
+    # paths to the val datasets
     file_paths:
-      - data/training 
+      - data/val_s
+
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
+    slice_builder:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [128, 128, 128]
+      # train stride between patches
+      stride_shape: [64, 64, 64]
+      # minimum volume of the labels in the patch
+      threshold: 0
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.01
 
     # data augmentation
     transformer:
       raw:
-        - name: Standardize
         - name: ToTensor
           expand_dims: true
       label:
