@@ -149,7 +149,7 @@ class AneuInsertion:
             aneu_shape = np.array(aneu.shape)
             m_shape = np.array(m.shape)
             # Random aneurysm to big -> skip insertion
-            if (aneu_shape > m_shape).any():
+            if (aneu_shape >= m_shape).any():
                 return m
 
             if self.crop:
