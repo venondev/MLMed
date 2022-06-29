@@ -105,11 +105,55 @@ class RunningAverage:
         self.count += n
         self.sum += value * n
         self.avg = self.sum / self.count
+
     def reset(self):
         self.count = 0
         self.sum = 0
         self.avg = 0
 
+
+class EvalScoreTracker:
+    def __init__(self):
+        self.scores = {}
+        self.total_score = RunningAverage()
+        self.cache = []
+
+    def update(self, value, n):
+        if type(value) is tuple:
+            assert len(value) == 2, "Expecting detailed_score, cache_entry"
+            detailed_score, eval_cache_entry = value
+            self.cache.append(eval_cache_entry)
+
+            for key in detailed_score:
+                if key not in self.scores:
+                    self.scores[key] = RunningAverage()
+
+                self.scores[key].update(detailed_score[key], n)
+        else:
+            self.total_score.update(value.item(), n)
+
+    @property
+    def avg(self):
+        out = {}
+        for key in self.scores:
+            a = self.scores[key]
+            if isinstance(a, RunningAverage):
+                a = self.scores[key].avg
+            out[key] = a.item() if hasattr(a, "item") else a
+
+        total = self.total_score.avg
+        total = total.item() if hasattr(total, "item") else total
+
+        return total, out
+
+    def __str__(self):
+        _, detailed = self.avg
+
+        ret = "\n"
+        for key in detailed:
+            ret += f"{key}: {detailed[key]},\n"
+
+        return ret
 
 def find_maximum_patch_size(model, device):
     """Tries to find the biggest patch size that can be send to GPU for inference

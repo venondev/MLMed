@@ -8,8 +8,8 @@ import nibabel as nib
 import numpy as np
 from pathlib import Path
 
-# Path to new hdf5 training folder 
-h5_training_path = "./data/training_conv/"
+# Path to raw data
+data_path = Path('./data/training')
 
 
 def align_dims(image, mask, labeled_mask):
@@ -28,44 +28,58 @@ def align_dims(image, mask, labeled_mask):
     return image, mask, labeled_mask
 
 
-# Transform NII files to HDF5
-def nii_to_h5(files):
+# 70 30 split
+# Tiefe umstellen
 
-    for file_orig, file_mask, file_labeled in files:
+# Transform NII files to HDF5
+def nii_to_h5(files, save_path):
+    for name in files:
         # convert nii to numpy
-        orig = np.array(nib.load(file_orig).get_fdata())
-        mask = np.array(nib.load(file_mask).get_fdata())
-        labelMask = np.array(nib.load(file_labeled).get_fdata())
+        orig = np.array(nib.load(f"{data_path}/{name}_orig.nii.gz").get_fdata())
+        mask = np.array(nib.load(f"{data_path}/{name}_masks.nii.gz").get_fdata())
+        labelMask = np.array(nib.load(f"{data_path}/{name}_labeledMasks.nii.gz").get_fdata())
 
         orig, mask, labelMask = align_dims(orig, mask, labelMask)
 
-        # new file name 
-        file_name = str(file_mask).split("/")[-1].split(".")[0]
+        orig = np.transpose(orig, (2, 0, 1))
+        mask = np.transpose(mask, (2, 0, 1))
+        labelMask = np.transpose(labelMask, (2, 0, 1))
 
-        numpy_to_h5(orig, mask, labelMask, file_name)
+        orig /= orig.max()
+
+        numpy_to_h5(orig, mask, labelMask, name, save_path)
 
     print("Finished converting data")
 
-def numpy_to_h5(orig, mask, labelMask, file_name):
-    target_file = os.path.join(h5_training_path + file_name + ".h5")
+
+def numpy_to_h5(orig, mask, labelMask, file_name, save_path):
+    target_file = os.path.join(save_path + file_name + ".h5")
     f = h5py.File(target_file, mode="a")
-    
+
     # save original file as raw (as required in pytorch3dunet)
-    f.create_dataset("raw", data = orig)
+    f.create_dataset("raw", data=orig)
     # save mask as label (as required in pytorch3dunet)
-    f.create_dataset("label", data = mask)
+    f.create_dataset("label", data=mask)
     # save labeled mask datas as labelMask
-    f.create_dataset("labelMask", data = labelMask)
+    f.create_dataset("labelMask", data=labelMask)
+
 
 # Path to NII data
-data_path = Path('./data/training')
 
+train_split = 0.7
 # Load files
-files = sorted(list(data_path.glob('*.*')))
-files_orig = list(filter(lambda file: 'orig.nii.gz' in str(file), files))
-files_masks = list(filter(lambda file: 'masks.nii.gz' in str(file), files))
-files_labeled = list(filter(lambda file: 'labeledMasks.nii.gz' in str(file), files))
+files = os.listdir(data_path)
+files = filter(lambda x: x.endswith("_orig.nii.gz"), files)
+files = list(map(lambda x: x.replace("_orig.nii.gz", ""), files))
+np.random.shuffle(files)
+
+split = int(len(files) * train_split)
+train = files[:split]
+val = files[split:]
+
+print(len(train))
+print(len(val))
 
 # convert to HDF5
-files = zip(files_orig, files_masks, files_labeled)
-nii_to_h5(files)
+nii_to_h5(train, "./data/train/")
+nii_to_h5(val, "./data/val/")

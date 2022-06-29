@@ -1,9 +1,10 @@
 import importlib
 
 import numpy as np
-import torch
 from skimage import measure
 from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio, mean_squared_error
+import torch
+from monai.metrics import compute_hausdorff_distance, compute_average_surface_distance
 
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
@@ -27,6 +28,76 @@ class DiceCoefficient:
     def __call__(self, input, target):
         # Average across channels in order to get the final score
         return torch.mean(compute_per_channel_dice(input, target, epsilon=self.epsilon))
+
+
+def compute_volume_bias(volume_gt, volume_pred):
+    return 1 / np.mean(np.abs(volume_gt - volume_pred))
+
+
+def compute_volume_std_dev(volume_gt, volume_pred):
+    return 1 / np.std(np.abs(volume_gt - volume_pred))
+
+
+def compute_volume_pearson(volume_gt, volume_pred):
+    return max(0, (np.corrcoef(volume_gt, volume_pred)[0, 1]))
+
+class MedMl:
+
+    def __init__(self, skip_channels=(), ignore_index=None, **kwargs):
+        self.compute_jaccard = MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
+
+    def __call__(self, input, target):
+        assert input.dim() == 5
+        assert input.size() == target.size()
+
+        jaccard_score = self.compute_jaccard(input, target).item()
+
+        input_bin = (input > 0.5).long()
+
+        # Compute Hausdorff distance and average surface distance and cover edge cases
+        target_np = target.cpu().detach().numpy()
+        input_np = input_bin.cpu().detach().numpy()
+
+        target_empty = np.logical_not(target_np.any(axis=(1, 2, 3, 4)))
+        pred_empty = np.logical_not(input_np.any(axis=(1, 2, 3, 4)))
+
+        hausdorff_score = 1 / torch.max(torch.ones(input_bin.shape[0]), compute_hausdorff_distance(input_bin, target))
+        avg_score = 1 / torch.max(torch.ones(input_bin.shape[0]), compute_average_surface_distance(input_bin, target))
+
+        hausdorff_score[pred_empty & target_empty] = 1
+        hausdorff_score[np.logical_xor(pred_empty, target_empty)] = 0
+
+        avg_score[pred_empty & target_empty] = 1
+        avg_score[np.logical_xor(pred_empty, target_empty)] = 0
+
+        detailed_score = {
+            "hausdorff": hausdorff_score.mean().item(),
+            "avg_dist": avg_score.mean().item(),
+            "jaccard": jaccard_score
+        }
+
+        # Values for final calculation
+        volume_gt = []
+        volume_pred = []
+        for _input, _target in zip(input_bin, target):
+            volume_gt.append(_target.sum().item())
+            volume_pred.append(_input.sum().item())
+
+        return detailed_score, (volume_gt, volume_pred)
+
+    def compute_final(self, eval_tracker):
+        volume_gt = np.concatenate([x[0] for x in eval_tracker.cache])
+        volume_pred = np.concatenate([x[1] for x in eval_tracker.cache])
+
+        eval_tracker.scores["bias"] = compute_volume_bias(volume_gt, volume_pred)
+        eval_tracker.scores["std"] = compute_volume_std_dev(volume_gt, volume_pred)
+        eval_tracker.scores["pearson"] = compute_volume_pearson(volume_gt, volume_pred)
+
+        _, detailed = eval_tracker.avg
+        total = (detailed["bias"] + detailed["std"] + detailed["pearson"] + detailed["hausdorff"]
+                 + detailed["jaccard"] + detailed["avg_dist"]) / 6
+
+        return total, detailed
 
 
 class MeanIoU:

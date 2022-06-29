@@ -82,10 +82,12 @@ class AneuInsertion:
             iters=1,
             type="raw",
             crop=True,
+            execution_probalility=0.5,
             **kwargs
     ):
         assert type in ["raw", "label"]
 
+        self.execution_probability = execution_probalility
         self.random_state = random_state
         self.path = path
         self.iters = iters
@@ -121,6 +123,9 @@ class AneuInsertion:
         return x, y, z
 
     def __call__(self, m):
+        if self.random_state.uniform() > self.execution_probability:
+            return m
+
         for _ in range(self.iters):
             insert_case = self.load_rand_case()
             bound = self.get_aneurysm_bounds(insert_case["label"][:])
@@ -144,10 +149,8 @@ class AneuInsertion:
             aneu_shape = np.array(aneu.shape)
             m_shape = np.array(m.shape)
             # Random aneurysm to big -> skip insertion
-            if (aneu_shape>m_shape).any():
+            if (aneu_shape >= m_shape).any():
                 return m
-
-            
 
             if self.crop:
                 # Allow aneurysm to be placed slightly outside the area of the current case
@@ -181,12 +184,15 @@ class Perlin:
             alpha,
             res,
             shape,
+            execution_probalility=0.5,
             **kwargs
     ):
         self.random_state = random_state
         self.alpha = alpha
         self.res = res
         self.shape = shape
+        self.execution_probability = execution_probalility
+
 
     def generate_perlin_noise_3d(self):
         def f(t):
@@ -229,9 +235,12 @@ class Perlin:
         return ((1 - t[:, :, :, 2]) * n0 + t[:, :, :, 2] * n1)
 
     def __call__(self, x):
-        noise = self.generate_perlin_noise_3d()
-        n, l, k = x.shape
-        return x + self.alpha * noise[:n, :l, :k]
+        if self.random_state.uniform() < self.execution_probability:
+            noise = self.generate_perlin_noise_3d()
+            n, l, k = x.shape
+            return x + self.alpha * noise[:n, :l, :k]
+
+        return x
 
 
 class Insertion:
@@ -244,6 +253,7 @@ class Insertion:
             max_patch_size=(128, 128, 128),
             iters=1,
             type="raw",
+            execution_probalility=0.5,
             **kwargs
     ):
         assert type in ["raw", "label"]
@@ -255,13 +265,16 @@ class Insertion:
         self.iters = iters
         self.type = type
         self.cases = os.listdir(self.path)
-        
+        self.execution_probability = execution_probalility
 
     def load_rand_case(self):
         pick = self.random_state.choice(self.cases)
         return h5py.File(f"{self.path}/{pick}", mode="r")
 
     def __call__(self, x):
+        if self.execution_probability > self.random_state.uniform():
+            return x
+
         for _ in range(self.iters):
             insert_case_raw = self.load_rand_case()[self.type][:]
 
@@ -352,6 +365,30 @@ class RandomRotate:
 
         return m
 
+class Threshold:
+    def __init__(self, low, high, **kwargs):
+        self.low = low
+        self.high = high
+
+    def __call__(self, m):
+        m[m < self.low] = 0
+        m[m > self.high] = 1
+
+        return m
+
+class PercentileThreshold:
+    def __init__(self, low, high, **kwargs):
+        self.low = low
+        self.high = high
+
+    def __call__(self, m):
+        low_perc = np.percentile(m, self.low)
+        high_perc = np.percentile(m, self.high)
+
+        m[m < low_perc] = 0
+        m[m > high_perc] = 1
+
+        return m
 
 class RandomContrast:
     """
