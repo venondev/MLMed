@@ -39,8 +39,7 @@ def compute_volume_std_dev(volume_gt, volume_pred):
 
 
 def compute_volume_pearson(volume_gt, volume_pred):
-    return (np.corrcoef(volume_gt, volume_pred)[0, 1] + 1) / 2
-
+    return max(0, (np.corrcoef(volume_gt, volume_pred)[0, 1]))
 
 class MedMl:
 
@@ -49,7 +48,6 @@ class MedMl:
 
     def __call__(self, input, target):
         assert input.dim() == 5
-
         assert input.size() == target.size()
 
         jaccard_score = self.compute_jaccard(input, target).item()
