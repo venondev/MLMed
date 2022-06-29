@@ -5,7 +5,6 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from pytorch3dunet.datasets.utils import get_train_loaders
-import numpy as np
 from pytorch3dunet.unet3d import online_logger
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
@@ -190,11 +189,15 @@ class UNet3DTrainer:
         self.model.train()
         self.optimizer.zero_grad()
 
+        num_cases = len(self.loaders["train"])
+        i = 1
+
         for t in self.loaders['train']:
-            logger.info(f'Training iteration [{self.num_iterations}/{self.max_num_iterations}]. '
-                        f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}]')
 
             input, target, weight = self._split_training_batch(t)
+
+            logger.info(f'Training iteration [{i}/{num_cases}] Total Iterations: [{self.num_iterations}/{self.max_num_iterations}]. '
+                        f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}], batch_size: {self._batch_size(input)}')
 
             output, loss = self._forward_pass(input, target, weight)
             self.train_losses.update(loss.item(), self._batch_size(input))
@@ -234,7 +237,7 @@ class UNet3DTrainer:
                 self.web_logger.log_params(self.num_iterations)
                 self.web_logger.log_images(input, target, output, self.num_iterations, 'train_')
                 self.web_logger.log_images_upload(self.num_iterations, 'train_')
-
+            
             if self.should_stop():
                 self.run_validation_step(store_model=True)
                 return True
@@ -244,6 +247,7 @@ class UNet3DTrainer:
                 self.web_logger.log_non(self.num_iterations + 1)
 
             self.num_iterations += 1
+            i += 1
 
         return False
 

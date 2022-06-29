@@ -365,6 +365,30 @@ class RandomRotate:
 
         return m
 
+class Threshold:
+    def __init__(self, low, high, **kwargs):
+        self.low = low
+        self.high = high
+
+    def __call__(self, m):
+        m[m < self.low] = 0
+        m[m > self.high] = 1
+
+        return m
+
+class PercentileThreshold:
+    def __init__(self, low, high, **kwargs):
+        self.low = low
+        self.high = high
+
+    def __call__(self, m):
+        low_perc = np.percentile(m, self.low)
+        high_perc = np.percentile(m, self.high)
+
+        m[m < low_perc] = 0
+        m[m > high_perc] = 1
+
+        return m
 
 class RandomContrast:
     """
