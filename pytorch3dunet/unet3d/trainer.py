@@ -232,7 +232,7 @@ class UNet3DTrainer:
 
             if self.num_iterations % self.validate_after_iters == 0:
                 self.run_validation_step(
-                    store_model=self.num_iterations % (self.store_after_val * self.validate_after_iters) == 0)
+                    store_model=True)
 
             if self.num_iterations % self.log_after_iters == 0:
                 # compute eval criterion
