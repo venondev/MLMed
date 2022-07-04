@@ -20,3 +20,4 @@ data
 .vscode/*
 train_datasets.pkl
 val_datasets.pkl
+wandb/*
