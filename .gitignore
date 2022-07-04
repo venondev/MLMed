@@ -18,3 +18,5 @@ pytorch3dunet.egg-info/
 dist/
 data
 .vscode/*
+train_datasets.pkl
+val_datasets.pkl
