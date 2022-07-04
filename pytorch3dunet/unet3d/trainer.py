@@ -104,7 +104,7 @@ class UNet3DTrainer:
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
                  eval_criterion, web_logger, device, loaders, checkpoint_dir, verbose_train_validation,
                  max_num_epochs, max_num_iterations,auto_encoder=False,
-                 acc_batchsize=1, store_after_val=100,
+                 acc_batchsize=1,
                  validate_after_iters=200, log_after_iters=100, num_of_img_per_val=1,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, skip_train_validation=False,
@@ -118,7 +118,6 @@ class UNet3DTrainer:
         self.scheduler = lr_scheduler
         self.loss_criterion = loss_criterion
         self.eval_criterion = eval_criterion
-        self.store_after_val = store_after_val
         self.device = device
         self.loaders = loaders
         self.checkpoint_dir = checkpoint_dir
@@ -369,7 +368,7 @@ class UNet3DTrainer:
         # forward pass
         output = self.model(input)
 
-        
+
         # compute the loss
         
         if weight is None:
