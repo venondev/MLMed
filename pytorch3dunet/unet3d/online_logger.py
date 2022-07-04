@@ -9,7 +9,7 @@ from pytorch3dunet.unet3d.utils import DefaultTensorboardFormatter
 
 
 class OnlineLogger:
-    def __init__(self, model, config):
+    def __init__(self, model, config,auto_encoder=False):
         raise NotImplementedError
 
     def log_stats(self, loss, eval, eval_detailed, step, prefix):
@@ -35,7 +35,7 @@ class OnlineLogger:
 
 
 class DisableLogger:
-    def __init__(self, model, config):
+    def __init__(self, model, config,auto_encoder=False):
         return
 
     def log_stats(self, loss, eval, eval_detailed, step, prefix):
@@ -61,7 +61,7 @@ class DisableLogger:
 
 
 class TensorboardLogger(OnlineLogger):
-    def __init__(self, model, config):
+    def __init__(self, model, config,auto_encoder=False):
         self.model = model
         self.writer = SummaryWriter(log_dir=os.path.join(config["trainer"]["checkpoint_dir"], 'logs'))
         self.tensorboard_formatter = get_tensorboard_formatter(config["trainer"].pop('tensorboard_formatter', None))
@@ -133,7 +133,8 @@ def get_tensorboard_formatter(formatter_config):
 
 
 class WandBLogger(OnlineLogger):
-    def __init__(self, model, config):
+    def __init__(self, model, config, auto_encoder=False):
+        self.auto_encoder=auto_encoder
         self.model = model
         wandb.init(project="aneurysm-segmentation", entity="mlmed", config=config, name=config["run"]["name"],
                    notes=config["run"]["notes"])
@@ -144,6 +145,8 @@ class WandBLogger(OnlineLogger):
         self.file_path = config["trainer"]["checkpoint_dir"] + "/last_checkpoint.pytorch"
         self.temp_images = []
         self.temp_params = []
+        self.input_imgages=[]
+        self.output_imgages=[]
 
     def log_stats(self, loss, eval, eval_detailed, step, prefix):
         log_dict = {
@@ -174,12 +177,18 @@ class WandBLogger(OnlineLogger):
         wandb.log({"learning_rate": lr}, step=step)
 
     def log_images_upload(self, step, prefix):
+        if self.auto_encoder:
+            
+            wandb.log({prefix + "_input_images": self.input_imgages}, step=step)
+            self.input_imgages=[]
+            wandb.log({prefix + "_output_images": self.output_imgages}, step=step)
+            self.output_imgages=[]
+        else:
+            wandb.log({prefix + "_images": self.temp_images}, step=step)
+            self.temp_images = []
 
-        wandb.log({prefix + "_images": self.temp_images}, step=step)
-        self.temp_images = []
-
-    def log_images(self, input, target, prediction, step, prefix):
-        if self.model.training:
+    def log_images(self, input, target, prediction, step, prefix,params=None):
+        if self.model.training and not self.auto_encoder:
             if isinstance(self.model, nn.DataParallel):
                 net = self.model.module
             else:
@@ -213,7 +222,13 @@ class WandBLogger(OnlineLogger):
         }
         if params!=None:
             params=str(params)
-
+        if self.auto_encoder:
+            input_img = wandb.Image(img_end["inputs"],caption=params)
+            self.input_imgages.append(input_img)
+            output_img = wandb.Image(img_end["predictions"],caption=params)
+            self.output_imgages.append(output_img)
+            return
+        
         masked_image = wandb.Image(img_end["inputs"], masks={
             "predictions": {
                 "mask_data": np.where(img_end["predictions"] > 0.5, 1, 0),
