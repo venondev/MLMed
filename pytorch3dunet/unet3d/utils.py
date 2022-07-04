@@ -378,7 +378,28 @@ def create_optimizer(optimizer_config, model):
     learning_rate = optimizer_config['learning_rate']
     weight_decay = optimizer_config.get('weight_decay', 0)
     betas = tuple(optimizer_config.get('betas', (0.9, 0.999)))
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=betas, weight_decay=weight_decay)
+    fr_encoder=optimizer_config.pop('freeze_encoder', False)
+    fr_decoder=optimizer_config.pop('freeze_decoder', False)
+    
+    if fr_encoder:
+        plist = nn.ParameterList()
+        if isinstance(model,nn.DataParallel):
+            plist.extend(model.module.decoders.parameters())
+            plist.extend(model.module.final_conv.parameters())
+        else:
+            plist.extend(model.decoders.parameters())
+            plist.extend(model.final_conv.parameters())
+    if fr_decoder:
+        plist = nn.ParameterList()
+        if isinstance(model,nn.DataParallel):
+            plist.extend(model.module.encoders.parameters())
+        else:
+            plist.extend(model.encoders.parameters())
+    if (not fr_encoder) and (not fr_decoder):
+        plist=model.parameters()
+
+
+    optimizer = optim.Adam(plist, lr=learning_rate, betas=betas, weight_decay=weight_decay)
     return optimizer
 
 
