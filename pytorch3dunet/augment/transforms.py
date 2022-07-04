@@ -9,6 +9,7 @@ from scipy.ndimage import rotate, zoom, map_coordinates, gaussian_filter, convol
 from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
+from scipy.ndimage import percentile_filter, binary_dilation, maximum_filter, minimum_filter, generic_filter, binary_erosion, shift
 
 # WARN: use fixed random state for reproducibility; if you want to randomize on each run seed with `time.time()` e.g.
 GLOBAL_RANDOM_STATE = np.random.RandomState(47)
@@ -23,6 +24,58 @@ class Compose(object):
             m = t(m)
         return m
 
+class RandomScale:
+    def __init__(self, random_state, sigma=[0.7, 1.3], order=0, execution_probalility=0.5, **kwargs):
+        self.random_state = random_state
+        self.sigma = sigma
+        self.order = order
+        self.execution_probability = execution_probalility
+
+    def __call__(self, m):
+        if self.random_state.uniform() > self.execution_probability:
+            return m
+
+        alpha = self.random_state.uniform(self.sigma[0], self.sigma[1])
+        if alpha > 0.95 and alpha <= 1:
+            alpha -= 0.05
+        elif alpha > 1 and alpha <= 1.05:
+            alpha += 0.05
+
+        zoomed = zoom(m, alpha, order=self.order, mode='reflect')
+        zoom_shape = np.array(zoomed.shape)
+        m_shape = np.array(m.shape)
+
+        if alpha < 1:
+            ret = np.zeros(m.shape)
+            start = self.random_state.randint(0, m_shape - zoom_shape, size=3)
+            stop = start + zoom_shape
+
+            ret[Slice3D(start, stop).tuple] = zoomed
+
+            return ret
+        else:
+            start = self.random_state.randint(0, zoomed.shape - m_shape, size=3)
+            stop = start + m_shape
+            return zoomed[Slice3D(start, stop).tuple]
+
+class RandomTranslate:
+    def __init__(self, random_state, sigma=[0, 64], order=0, execution_probalility=0.5, **kwargs):
+        self.random_state = random_state
+        self.sigma = sigma
+        self.order = order
+        self.execution_probability = execution_probalility
+
+    def __call__(self, m):
+        if self.random_state.uniform() > self.execution_probability:
+            return m
+
+        x = self.random_state.randint(self.sigma[0], self.sigma[1])
+        y = self.random_state.randint(self.sigma[0], self.sigma[1])
+        z = self.random_state.randint(self.sigma[0], self.sigma[1])
+
+        m = shift(m, [x, y, z], order=self.order, mode='reflect')
+        return m
+
 
 class RandomFlip:
     """
@@ -32,14 +85,18 @@ class RandomFlip:
     otherwise the models won't converge.
     """
 
-    def __init__(self, random_state, axis_prob=0.5, **kwargs):
+    def __init__(self, random_state, axis_prob=0.5, execution_probalility=0.5, **kwargs):
         assert random_state is not None, 'RandomState cannot be None'
         self.random_state = random_state
         self.axes = (0, 1, 2)
         self.axis_prob = axis_prob
+        self.execution_probability = execution_probalility
 
     def __call__(self, m):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
+
+        if self.random_state.uniform() > self.execution_probability:
+            return m
 
         for axis in self.axes:
             if self.random_state.uniform() > self.axis_prob:
@@ -70,6 +127,36 @@ class Slice3D:
             slices.append(slice(self.start[i], self.stop[i]))
 
         return tuple(slices)
+
+class ShrinkMask:
+
+    def __init__(self, iterations, min_size, **kwargs):
+        self.iterations = iterations
+        self.min_size = min_size
+        pass
+
+    def __call__(self, m):
+        for i in range(self.iterations):
+            if m.sum() < self.min_size:
+                break
+            m = binary_erosion(m, iterations=1)
+        return m
+
+class ArteryMask:
+
+    def __init__(self, pmax, **kwargs):
+        self.pmax = pmax
+
+    def __call__(self, m):
+        m = m[None]
+        img_b = m.copy()
+        img_b[img_b >= self.pmax] = 1
+        img_b[img_b < self.pmax] = 0
+        img_b = minimum_filter(img_b, size=2)
+        img_b = binary_dilation(img_b, iterations=3)
+        
+        ret = np.concatenate([m, img_b])
+        return ret
 
 
 class AneuInsertion:
@@ -825,7 +912,7 @@ class Standardize:
 
 
 class PercentileNormalizer:
-    def __init__(self, pmin=1, pmax=99.6, channelwise=False, eps=1e-10, **kwargs):
+    def __init__(self, pmin=1, pmax=99, channelwise=False, eps=1e-10, **kwargs):
         self.eps = eps
         self.pmin = pmin
         self.pmax = pmax
@@ -850,41 +937,47 @@ class Normalize:
     Apply simple min-max scaling to a given input tensor, i.e. shrinks the range of the data in a fixed range of [-1, 1].
     """
 
-    def __init__(self, min_value, max_value, **kwargs):
-        assert max_value > min_value
-        self.min_value = min_value
-        self.value_range = max_value - min_value
+    def __init__(self, **kwargs):
+        pass
 
     def __call__(self, m):
-        norm_0_1 = (m - self.min_value) / self.value_range
-        return np.clip(2 * norm_0_1 - 1, -1, 1)
+        min_val = m.min()
+        max_val = m.max()
+
+        norm_0_1 = (m - min_val) / (max_val - min_val)
+        return norm_0_1
 
 
 class AdditiveGaussianNoise:
-    def __init__(self, random_state, scale=(0.0, 1.0), execution_probability=0.1, **kwargs):
+    def __init__(self, random_state, scale=(0.0, 1.0), sigma=[0, 0.3], execution_probability=0.1, **kwargs):
         self.execution_probability = execution_probability
         self.random_state = random_state
         self.scale = scale
+        self.sigma = sigma
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
             std = self.random_state.uniform(self.scale[0], self.scale[1])
             gaussian_noise = self.random_state.normal(0, std, size=m.shape)
-            return m + gaussian_noise
+            alpha = self.random_state.uniform(self.sigma[0], self.sigma[1])
+            return m + alpha * gaussian_noise
         return m
 
 
 class AdditivePoissonNoise:
-    def __init__(self, random_state, lam=(0.0, 1.0), execution_probability=0.1, **kwargs):
+    def __init__(self, random_state, lam=(0.0, 1.0), sigma=[0.1, 0.5], execution_probability=0.1, **kwargs):
         self.execution_probability = execution_probability
         self.random_state = random_state
         self.lam = lam
+        self.sigma = sigma
 
     def __call__(self, m):
         if self.random_state.uniform() < self.execution_probability:
             lam = self.random_state.uniform(self.lam[0], self.lam[1])
             poisson_noise = self.random_state.poisson(lam, size=m.shape)
-            return m + poisson_noise
+
+            alpha = self.random_state.uniform(self.sigma[0], self.sigma[1])
+            return m + alpha * poisson_noise
         return m
 
 
