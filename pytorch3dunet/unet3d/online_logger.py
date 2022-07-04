@@ -198,9 +198,9 @@ class WandBLogger(OnlineLogger):
                 prediction = net.final_activation(prediction)
 
         inputs_map = {
-            'inputs': input,
-            'targets': target,
-            'predictions': prediction
+            'inputs': input[0],
+            'targets': target[0],
+            'predictions': prediction[0]
         }
         img_sources = {}
         for name, batch in inputs_map.items():
