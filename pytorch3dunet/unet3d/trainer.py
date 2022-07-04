@@ -9,6 +9,7 @@ from pytorch3dunet.unet3d import online_logger
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.threshold import ThresholdLayer
 from pytorch3dunet.unet3d.utils import get_logger, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
@@ -47,7 +48,10 @@ def create_trainer(config, test_run=False):
     lr_scheduler = create_lr_scheduler(config.get('lr_scheduler', None), optimizer)
 
     trainer_config = config['trainer']
-    web_logger = online_logger.get_class(trainer_config["online_logger"])(model, config)
+    auto_encoder = trainer_config.pop('auto_encoder', False)
+
+    
+    web_logger = online_logger.get_class(trainer_config["online_logger"])(model, config, auto_encoder=auto_encoder)
 
     # Create trainer
     resume = trainer_config.pop('resume', None)
@@ -62,6 +66,7 @@ def create_trainer(config, test_run=False):
                          device=config['device'],
                          loaders=loaders,
                          resume=resume,
+                         auto_encoder=auto_encoder,
                          pre_trained=pre_trained,
                          **trainer_config)
 
@@ -98,21 +103,21 @@ class UNet3DTrainer:
 
     def __init__(self, model, optimizer, lr_scheduler, loss_criterion,
                  eval_criterion, web_logger, device, loaders, checkpoint_dir, verbose_train_validation,
-                 max_num_epochs, max_num_iterations,
-                 acc_batchsize=1, store_after_val=100,
+                 max_num_epochs, max_num_iterations,auto_encoder=False,
+                 acc_batchsize=1,
                  validate_after_iters=200, log_after_iters=100, num_of_img_per_val=1,
                  validate_iters=None, num_iterations=1, num_epoch=0,
                  eval_score_higher_is_better=True, skip_train_validation=False,
                  resume=None, pre_trained=None, **kwargs):
         self.web_logger = web_logger
         self.acc_batchsize = acc_batchsize
+        self.auto_encoder=auto_encoder
         self.verbose_train_validation = verbose_train_validation,
         self.model = model
         self.optimizer = optimizer
         self.scheduler = lr_scheduler
         self.loss_criterion = loss_criterion
         self.eval_criterion = eval_criterion
-        self.store_after_val = store_after_val
         self.device = device
         self.loaders = loaders
         self.checkpoint_dir = checkpoint_dir
@@ -172,8 +177,14 @@ class UNet3DTrainer:
             self.run_validation_step(store_model=True)
 
     def eval(self, output, target):
-        if self.model.final_activation is not None:
-            output = self.model.final_activation(output)
+        if self.auto_encoder:
+            return self.eval_criterion(output, target)
+        if isinstance(self.model,nn.DataParallel):
+            fa=self.model.module.final_activation
+        else:
+            fa=self.model.final_activation
+        if fa is not None:
+            output = fa(output)
         return self.eval_criterion(output, target)
 
     def train(self):
@@ -195,6 +206,9 @@ class UNet3DTrainer:
         for t in self.loaders['train']:
 
             input, target, weight = self._split_training_batch(t)
+            mask=target
+            if self.auto_encoder:
+                target=input
 
             logger.info(f'Training iteration [{i}/{num_cases}] Total Iterations: [{self.num_iterations}/{self.max_num_iterations}]. '
                         f'Epoch [{self.num_epochs}/{self.max_num_epochs - 1}], batch_size: {self._batch_size(input)}')
@@ -217,7 +231,7 @@ class UNet3DTrainer:
 
             if self.num_iterations % self.validate_after_iters == 0:
                 self.run_validation_step(
-                    store_model=self.num_iterations % (self.store_after_val * self.validate_after_iters) == 0)
+                    store_model=True)
 
             if self.num_iterations % self.log_after_iters == 0:
                 # compute eval criterion
@@ -235,7 +249,7 @@ class UNet3DTrainer:
                 self.web_logger.log_stats(self.train_losses.avg, eval_score, eval_score_detailed, self.num_iterations,
                                           "train")
                 self.web_logger.log_params(self.num_iterations)
-                self.web_logger.log_images(input, target, output, self.num_iterations, 'train_')
+                self.web_logger.log_images(input, mask, output, self.num_iterations, 'train_')
                 self.web_logger.log_images_upload(self.num_iterations, 'train_')
             
             if self.should_stop():
@@ -302,15 +316,21 @@ class UNet3DTrainer:
         with torch.no_grad():
             for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
+                if i % img_idx == 0 and num_logged_img < self.num_of_img_per_val:
+                    ThresholdLayer.log_output=True
 
                 input, target, weight = self._split_training_batch(t)
+                mask=target
+                if self.auto_encoder:
+                    target=input
 
                 output, loss = self._forward_pass(input, target, weight)
                 val_losses.update(loss.item(), self._batch_size(input))
 
                 if i % img_idx == 0 and num_logged_img < self.num_of_img_per_val:
-                    self.web_logger.log_images(input, target, output, self.num_iterations, 'val_')
+                    self.web_logger.log_images(input, mask, output, self.num_iterations, 'val_',params=ThresholdLayer.logged_output)
                     num_logged_img += 1
+                    ThresholdLayer.log_output=False
 
                 eval_score = self.eval(output, target)
                 val_scores.update(eval_score, self._batch_size(input))
@@ -341,13 +361,16 @@ class UNet3DTrainer:
             input, target = t
         else:
             input, target, weight = t
+        
         return input, target, weight
 
     def _forward_pass(self, input, target, weight=None):
         # forward pass
         output = self.model(input)
 
+
         # compute the loss
+        
         if weight is None:
             loss = self.loss_criterion(output, target)
         else:

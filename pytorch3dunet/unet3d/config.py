@@ -16,6 +16,8 @@ def load_config():
     args = parser.parse_args()
     config = yaml.safe_load(open(args.config, 'r'))
     # Get a device to train on
+    
+    config["model"]["auto_encoder"]=config["trainer"].get('auto_encoder', False)
     device_str = config.get('device', None)
     if device_str is not None:
         logger.info(f"Device specified in config: '{device_str}'")

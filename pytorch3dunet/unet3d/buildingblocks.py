@@ -258,8 +258,9 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True):
+                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True,auto_encoder=False):
         super(Decoder, self).__init__()
+        self.auto_encoder=auto_encoder
 
         if upsample:
             if basic_module == DoubleConv:
@@ -289,8 +290,12 @@ class Decoder(nn.Module):
                                          padding=padding)
 
     def forward(self, encoder_features, x):
+        
         x = self.upsampling(encoder_features=encoder_features, x=x)
-        x = self.joining(encoder_features, x)
+        if self.auto_encoder:
+            x = self.joining(torch.zeros_like(encoder_features), x)
+        else:
+            x = self.joining(encoder_features, x)
         x = self.basic_module(x)
         return x
 
@@ -330,13 +335,14 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
     return nn.ModuleList(encoders)
 
 
-def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, upsample):
+def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, upsample,auto_encoder=False):
     # create decoder path consisting of the Decoder modules. The length of the decoder list is equal to `len(f_maps) - 1`
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
     for i in range(len(reversed_f_maps) - 1):
         if basic_module == DoubleConv:
             in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
+        
         else:
             in_feature_num = reversed_f_maps[i]
 
@@ -356,7 +362,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
                           conv_kernel_size=conv_kernel_size,
                           num_groups=num_groups,
                           padding=conv_padding,
-                          upsample=_upsample)
+                          upsample=_upsample,auto_encoder=auto_encoder)
         decoders.append(decoder)
     return nn.ModuleList(decoders)
 

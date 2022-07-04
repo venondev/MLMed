@@ -2,6 +2,7 @@ import torch.nn as nn
 
 from pytorch3dunet.unet3d.buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, \
     create_decoders
+from pytorch3dunet.unet3d.threshold import ThresholdLayer
 from pytorch3dunet.unet3d.utils import number_of_features_per_level, get_class
 
 
@@ -35,32 +36,34 @@ class Abstract3DUNet(nn.Module):
         conv_padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
-    def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
+    def __init__(self, in_channels, out_channels,in_size, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
                  num_groups=8, num_levels=4, is_segmentation=True, conv_kernel_size=3, pool_kernel_size=2,
-                 conv_padding=1, **kwargs):
+                 conv_padding=1,auto_encoder=False,enable_threshold_layer=False, **kwargs):
         super(Abstract3DUNet, self).__init__()
-
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
 
         assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
         assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
-
+        self.enable_threshold_layer=enable_threshold_layer
         # create encoder path
+        self.auto_encoder=auto_encoder
+        if self.enable_threshold_layer:
+            self.threshold_layer = ThresholdLayer(in_size)
         self.encoders = create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding, layer_order,
                                         num_groups, pool_kernel_size)
 
         # create decoder path
         self.decoders = create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
-                                        upsample=True)
+                                        upsample=True,auto_encoder=auto_encoder)
 
         # in the last layer a 1×1 convolution reduces the number of output
         # channels to the number of labels
         self.final_conv = nn.Conv3d(f_maps[0], out_channels, 1)
 
-        if is_segmentation:
+        if is_segmentation or self.auto_encoder:
             # semantic segmentation problem
-            if final_sigmoid:
+            if final_sigmoid or self.auto_encoder:
                 self.final_activation = nn.Sigmoid()
             else:
                 self.final_activation = nn.Softmax(dim=1)
@@ -70,6 +73,8 @@ class Abstract3DUNet(nn.Module):
 
     def forward(self, x):
         # encoder part
+        if self.enable_threshold_layer:
+            x=self.threshold_layer(x)
         encoders_features = []
         for encoder in self.encoders:
             x = encoder(x)
@@ -87,7 +92,8 @@ class Abstract3DUNet(nn.Module):
             x = decoder(encoder_features, x)
 
         x = self.final_conv(x)
-
+        if self.auto_encoder:
+            x = self.final_activation(x)
         # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs logits
         # call final_activation in main to get correct validation loss
         #if not self.training and self.final_activation is not None:

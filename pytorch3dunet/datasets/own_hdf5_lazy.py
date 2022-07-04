@@ -1,6 +1,7 @@
 import glob
 import os
 from itertools import chain
+import pickle
 
 import h5py
 import numpy as np
@@ -17,6 +18,9 @@ class OwnLazyHDF5Dataset(ConfigDataset):
     Implementation of torch.utils.data.Dataset backed by the HDF5 files, which iterates over the raw and label datasets
     patch by patch with a given stride.
     """
+    def load_file(self):
+        self.input_file = self.create_h5_file(self.file_path)
+
 
     def __init__(self, file_path,
                  phase,
@@ -105,6 +109,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         self.weight_slices = slice_builder.weight_slices
 
         self.patch_count = len(self.raw_slices)
+        self.input_file=None
         logger.info(f'Number of patches: {self.patch_count}')
 
     @staticmethod
@@ -174,23 +179,36 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         file_paths = cls.traverse_h5_paths(file_paths)
         if test_run:
             file_paths=file_paths[:1]
-
-        datasets = []
-        for file_path in file_paths:
-            try:
-                logger.info(f'Loading {phase} set from: {file_path}...')
-                dataset = cls(file_path=file_path,
-                              phase=phase,
-                              slice_builder_config=slice_builder_config,
-                              transformer_config=transformer_config,
-                              mirror_padding=dataset_config.get('mirror_padding', None),
-                              raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
-                              label_internal_path=dataset_config.get('label_internal_path', 'label'),
-                              weight_internal_path=dataset_config.get('weight_internal_path', None),
-                              global_normalization=dataset_config.get('global_normalization', True))
-                datasets.append(dataset)
-            except Exception:
-                logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
+        slice_file_path=phase_config.get("slice_path",f'{phase}_slices.pkl')
+        if dataset_config.get("load_slices",False):
+            with open(slice_file_path, 'rb') as inp:
+                datasets = pickle.load(inp)
+            logger.info(f'{len(datasets)} {phase} slices from: {slice_file_path} were loaded ...')
+            if test_run:
+                datasets=datasets[:1]
+        else:
+            datasets = []
+            for file_path in file_paths:
+                try:
+                    logger.info(f'Loading {phase} set from: {file_path}...')
+                    dataset = cls(file_path=file_path,
+                                phase=phase,
+                                slice_builder_config=slice_builder_config,
+                                transformer_config=transformer_config,
+                                mirror_padding=dataset_config.get('mirror_padding', None),
+                                raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
+                                label_internal_path=dataset_config.get('label_internal_path', 'label'),
+                                weight_internal_path=dataset_config.get('weight_internal_path', None),
+                                global_normalization=dataset_config.get('global_normalization', True))
+                    datasets.append(dataset)
+                except Exception:
+                    logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
+            if dataset_config.get("store_slices",False):
+                with open(slice_file_path, 'wb') as outp:
+                    pickle.dump(datasets, outp, pickle.HIGHEST_PROTOCOL)
+                logger.info(f'{len(datasets)} {phase} slices saved in {slice_file_path}')
+        for dataset in datasets:
+                dataset.load_file()
         return datasets
 
     @staticmethod
