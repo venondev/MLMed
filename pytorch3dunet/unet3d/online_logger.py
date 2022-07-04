@@ -27,7 +27,7 @@ class OnlineLogger:
     def log_model(self, is_best, metadata):
         raise NotImplementedError
 
-    def log_images(self, input, target, prediction, step, prefix):
+    def log_images(self, input, target, prediction, step, prefix,params=None):
         raise NotImplementedError
 
     def log_non(self, step):
@@ -53,7 +53,7 @@ class DisableLogger:
     def log_model(self, is_best, metadata):
         return
 
-    def log_images(self, input, target, prediction, step, prefix):
+    def log_images(self, input, target, prediction, step, prefix,params=None):
         return
 
     def log_non(self, step):
@@ -91,7 +91,7 @@ class TensorboardLogger(OnlineLogger):
     def log_images_upload(self, step, prefix):
         return
 
-    def log_images(self, input, target, prediction, step, prefix):
+    def log_images(self, input, target, prediction, step, prefix,params=None):
         if self.model.training:
             if isinstance(self.model, nn.DataParallel):
                 net = self.model.module
@@ -143,6 +143,7 @@ class WandBLogger(OnlineLogger):
             wandb.watch(model, log_freq=config["trainer"]["log_after_iters"])
         self.file_path = config["trainer"]["checkpoint_dir"] + "/last_checkpoint.pytorch"
         self.temp_images = []
+        self.temp_params = []
 
     def log_stats(self, loss, eval, eval_detailed, step, prefix):
         log_dict = {
@@ -210,6 +211,8 @@ class WandBLogger(OnlineLogger):
         class_labels = {
             1: "aneurysm"
         }
+        if params!=None:
+            params=str(params)
 
         masked_image = wandb.Image(img_end["inputs"], masks={
             "predictions": {
@@ -220,7 +223,7 @@ class WandBLogger(OnlineLogger):
                 "mask_data": img_end["targets"],
                 "class_labels": class_labels
             }
-        })
+        },caption=params)
         self.temp_images.append(masked_image)
 
     def log_non(self, step):

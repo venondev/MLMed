@@ -9,6 +9,7 @@ from pytorch3dunet.unet3d import online_logger
 from pytorch3dunet.unet3d.losses import get_loss_criterion
 from pytorch3dunet.unet3d.metrics import get_evaluation_metric
 from pytorch3dunet.unet3d.model import get_model
+from pytorch3dunet.unet3d.threshold import ThresholdLayer
 from pytorch3dunet.unet3d.utils import get_logger, create_optimizer, \
     create_lr_scheduler, get_number_of_learnable_parameters
 from . import utils
@@ -302,6 +303,8 @@ class UNet3DTrainer:
         with torch.no_grad():
             for i, t in enumerate(self.loaders['val']):
                 logger.info(f'Validation iteration {i}')
+                if i % img_idx == 0 and num_logged_img < self.num_of_img_per_val:
+                    ThresholdLayer.log_output=True
 
                 input, target, weight = self._split_training_batch(t)
 
@@ -309,8 +312,9 @@ class UNet3DTrainer:
                 val_losses.update(loss.item(), self._batch_size(input))
 
                 if i % img_idx == 0 and num_logged_img < self.num_of_img_per_val:
-                    self.web_logger.log_images(input, target, output, self.num_iterations, 'val_')
+                    self.web_logger.log_images(input, mask, output, self.num_iterations, 'val_',params=ThresholdLayer.logged_output)
                     num_logged_img += 1
+                    ThresholdLayer.log_output=False
 
                 eval_score = self.eval(output, target)
                 val_scores.update(eval_score, self._batch_size(input))
