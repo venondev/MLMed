@@ -20,7 +20,6 @@ class OwnLazyHDF5Dataset(ConfigDataset):
     """
     def load_file(self):
         self.input_file = self.create_h5_file(self.file_path)
-        self.raw_transform = self.transformer.raw_transform()
 
 
 
