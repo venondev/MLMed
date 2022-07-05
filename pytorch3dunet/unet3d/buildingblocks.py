@@ -293,7 +293,7 @@ class Decoder(nn.Module):
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
                                                           kernel_size=conv_kernel_size, scale_factor=scale_factor)
                 # sum joining
-                self.joining = partial(self._joining, mode="sum" if not use_attention_gate else "mul")
+                self.joining = partial(self._joining, mode="sum")
                 # adapt the number of in_channels for the ExtResNetBlock
                 in_channels = out_channels
         
@@ -317,7 +317,6 @@ class Decoder(nn.Module):
         print("0xxx",x.size()) 
         if self.use_attention_gate:
             temp=self.attention_gate(encoder_features,x)
-            print("0xxx",temp.size()) 
             encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
         print("after_encoder_features",encoder_features.size())
         print("1xxx",x.size())          
@@ -378,7 +377,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
     for i in range(len(reversed_f_maps) - 1):
-        if basic_module == DoubleConv:
+        if basic_module == DoubleConv and not use_attention_gate:
             in_feature_num = reversed_f_maps[i] + reversed_f_maps[i + 1]
         
         else:
