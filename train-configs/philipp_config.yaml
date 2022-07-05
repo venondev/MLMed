@@ -13,7 +13,7 @@ model:
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcr
+  layer_order: gcl
   # number of features at each level of the U-Net
   f_maps: 32
   # number of groups in the groupnorm
@@ -103,7 +103,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - data_norm/train_clean
+      - data_norm/train_half
     slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
@@ -186,7 +186,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data_norm/val_clean
+      - data_norm/val_half
     slice_path: "val_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
