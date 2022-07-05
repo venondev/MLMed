@@ -113,6 +113,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         self.label_slices=[]
         self.weight_slices=[]
         for l in self.label_slices:
+            print(np.count_nonzero(label[l]),np.count_nonzero(label))
             if np.count_nonzero(label[l])==np.count_nonzero(label):
                 self.raw_slices.append(l)
                 self.label_slices.append(l)
