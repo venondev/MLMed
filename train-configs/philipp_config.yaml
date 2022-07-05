@@ -6,7 +6,7 @@ run:
   notes: first complete run
 # model configuration
 model:
-  num_levels: 7
+  num_levels: 4
   # model class, e.g. UNet3D, ResidualUNet3D
   name: ResidualUNet3D
   # number of input channels to the model
