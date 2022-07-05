@@ -280,7 +280,7 @@ class Decoder(nn.Module):
                  conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True,auto_encoder=False,use_attention_gate=False):
         super(Decoder, self).__init__()
         self.auto_encoder=auto_encoder
-
+        print(in_channels,out_channels)
         self.use_attention_gate=use_attention_gate
 
         if upsample:
