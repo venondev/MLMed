@@ -8,7 +8,7 @@ run:
 model:
   num_levels: 6
   # model class, e.g. UNet3D, ResidualUNet3D
-  name: UNet2D
+  name: UNet3D
   # number of input channels to the model
   in_channels: 1
   # number of output channels
