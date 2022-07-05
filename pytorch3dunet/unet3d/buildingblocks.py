@@ -246,6 +246,7 @@ class AttentionGate(nn.Module):
         self.relu=nn.ReLU()
         self.sigmoid=nn.Sigmoid()
     def forward(self, encoded_features, x):
+        print("x",x.size(),"encoded_features",encoded_features.size())
         encoded_features=self.encoded_features_resizer(encoded_features)
         x=self.x_resizer(x)
         print("x",x.size(),"encoded_features",encoded_features.size())
