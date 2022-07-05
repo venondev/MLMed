@@ -103,7 +103,7 @@ loaders:
   train:
     # paths to the training datasets
     file_paths:
-      - data_norm/train
+      - data_norm/train_clean
     slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
@@ -186,7 +186,7 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data_norm/val
+      - data_norm/val_clean
     slice_path: "val_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
