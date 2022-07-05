@@ -61,8 +61,8 @@ class MedMl:
         target_empty = np.logical_not(target_np.any(axis=(1, 2, 3, 4)))
         pred_empty = np.logical_not(input_np.any(axis=(1, 2, 3, 4)))
 
-        hausdorff_score = 1 / torch.max(torch.ones(input_bin.shape[0]), compute_hausdorff_distance(input_bin, target))
-        avg_score = 1 / torch.max(torch.ones(input_bin.shape[0]), compute_average_surface_distance(input_bin, target))
+        hausdorff_score = 1 / compute_hausdorff_distance(input_bin, target)
+        avg_score = 1 / compute_average_surface_distance(input_bin, target)
 
         hausdorff_score[pred_empty & target_empty] = 1
         hausdorff_score[np.logical_xor(pred_empty, target_empty)] = 0
@@ -71,8 +71,8 @@ class MedMl:
         avg_score[np.logical_xor(pred_empty, target_empty)] = 0
 
         detailed_score = {
-            "hausdorff": hausdorff_score.mean().item(),
-            "avg_dist": avg_score.mean().item(),
+            "hausdorff": torch.nanmean(hausdorff_score).item(),
+            "avg_dist": torch.nanmean(avg_score).item(),
             "jaccard": jaccard_score
         }
 
