@@ -121,6 +121,7 @@ loaders:
     transformer:
       raw:
         # subtract mean and divide by std dev
+        - name: HardThreshold
         - name: Standardize
         - name: RandomContrast
         # - name: Perlin
@@ -205,6 +206,7 @@ loaders:
     # data augmentation
     transformer:
       raw:
+        - name: HardThreshold
         - name: Standardize
         - name: ToTensor
           expand_dims: true
