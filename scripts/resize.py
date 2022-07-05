@@ -38,9 +38,6 @@ for dataset_type in ["train", "val"]:
             mask = f["label"][:]
             raw = f["raw"][:]
 
-            raw = pool(torch.from_numpy(raw[None, None]))[0, 0].numpy()
-            mask = pool(torch.from_numpy(mask[None, None]))[0, 0].numpy()
-
             # Normalize
             min_val = raw.min()
             max_val = raw.max()
