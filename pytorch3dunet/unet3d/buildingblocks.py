@@ -240,7 +240,6 @@ class Encoder(nn.Module):
 class AttentionGate(nn.Module):
     def __init__(self,x_out_channels):
         super(AttentionGate, self).__init__()
-        print(x_out_channels)
         self.x_resizer=nn.Conv3d(in_channels=x_out_channels*2,out_channels=x_out_channels,kernel_size=1,stride=1,padding="same")
         self.encoded_features_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=x_out_channels,kernel_size=3,stride=2)
         self.final_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=1,kernel_size=1,stride=1,padding="same")
@@ -249,6 +248,7 @@ class AttentionGate(nn.Module):
     def forward(self, encoded_features, x):
         encoded_features=self.encoded_features_resizer(encoded_features)
         x=self.x_resizer(x)
+        print("x",x.size(),"encoded_features",encoded_features.size())
         x=x+encoded_features
         x=self.relu(x)
         x=self.final_resizer(x)
@@ -280,7 +280,6 @@ class Decoder(nn.Module):
                  conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True,auto_encoder=False,use_attention_gate=False):
         super(Decoder, self).__init__()
         self.auto_encoder=auto_encoder
-        print(in_channels,out_channels)
         self.use_attention_gate=use_attention_gate
 
         if upsample:
