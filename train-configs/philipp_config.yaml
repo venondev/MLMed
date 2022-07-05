@@ -122,8 +122,6 @@ loaders:
       raw:
         # subtract mean and divide by std dev
         - name: HardThreshold
-        - name: Standardize
-        - name: RandomContrast
         # - name: Perlin
         #   # Size of noise, 64 gives noise which is similar to noise in background of cases
         #   res: [64, 64, 64]
@@ -207,7 +205,6 @@ loaders:
     transformer:
       raw:
         - name: HardThreshold
-        - name: Standardize
         - name: ToTensor
           expand_dims: true
       label:
