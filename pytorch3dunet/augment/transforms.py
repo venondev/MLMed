@@ -931,6 +931,14 @@ class PercentileNormalizer:
 
         return (m - pmin) / (pmax - pmin + self.eps)
 
+class HardThreshold:
+    def __init__(self, **kwargs):
+        pass
+        
+    def __call__(self, m):
+        m[m<m.mean()]=0
+        return m
+
 
 class Normalize:
     """
