@@ -320,6 +320,9 @@ class Decoder(nn.Module):
                 
         x = self.upsampling(encoder_features=encoder_features, x=x)
 
+        print("x: ",x.size())
+        print("encoder_features: ",encoder_features.size())
+
         
         if self.auto_encoder:
             x = self.joining(torch.zeros_like(encoder_features), x)
