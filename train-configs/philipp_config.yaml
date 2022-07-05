@@ -28,7 +28,7 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  acc_batchsize: 1
+  acc_batchsize: 8
   #online_loger: WandBLogger or TensorboardLogger
   online_logger: WandBLogger
   verbose_train_validation: true
