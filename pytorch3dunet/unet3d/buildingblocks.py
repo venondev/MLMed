@@ -240,6 +240,7 @@ class Encoder(nn.Module):
 class AttentionGate(nn.Module):
     def __init__(self,x_size_in):
         super(AttentionGate, self).__init__()
+        print(x_size_in)
         self.x_resizer=nn.Conv3d(in_channels=x_size_in,out_channels=x_size_in*2,kernel_size=1,stride=1,padding="same")
         self.encoded_features_resizer=nn.Conv3d(in_channels=x_size_in*2,out_channels=x_size_in*2,kernel_size=3,stride=2)
         self.final_resizer=nn.Conv3d(in_channels=x_size_in*2,out_channels=1,kernel_size=1,stride=1,padding="same")
