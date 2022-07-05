@@ -36,9 +36,9 @@ class Abstract3DUNet(nn.Module):
         conv_padding (int or tuple): add zero-padding added to all three sides of the input
     """
 
-    def __init__(self, in_channels, out_channels,in_size, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
+    def __init__(self, out_channels,in_size, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
                  num_groups=8, num_levels=4, is_segmentation=True, conv_kernel_size=3, pool_kernel_size=2,
-                 conv_padding=1,auto_encoder=False,enable_threshold_layer=False, **kwargs):
+                 conv_padding=1,auto_encoder=False,enable_threshold_layer=False,in_channels=0, **kwargs):
         super(Abstract3DUNet, self).__init__()
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
