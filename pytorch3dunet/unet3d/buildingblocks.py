@@ -298,6 +298,7 @@ class Decoder(nn.Module):
                 self.joining = partial(self._joining, mode="sum")
                 # adapt the number of in_channels for the ExtResNetBlock
                 in_channels = out_channels
+                out_channels/=2
         
         else:
             # no upsampling
