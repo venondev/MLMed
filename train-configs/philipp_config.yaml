@@ -7,7 +7,7 @@ run:
 # model configuration
 model:
   use_attention_gate: true
-  num_levels: 3
+  #num_levels: 3
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
@@ -17,7 +17,7 @@ model:
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcl
   # number of features at each level of the U-Net
-  f_maps: 8
+  f_maps: 32
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
@@ -28,7 +28,7 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  acc_batchsize: 2
+  acc_batchsize: 4
   #online_loger: WandBLogger or TensorboardLogger
   online_logger: WandBLogger
   verbose_train_validation: true
@@ -88,7 +88,7 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 2
+  batch_size: 1
   # how many subprocesses to use for data loading
   num_workers: 15
   # path to the raw data within the H5
