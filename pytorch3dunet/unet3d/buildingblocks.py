@@ -317,6 +317,7 @@ class Decoder(nn.Module):
         print("0xxx",x.size()) 
         if self.use_attention_gate:
             temp=self.attention_gate(encoder_features,x)
+            print("0xxx",temp.size()) 
             encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
         print("after_encoder_features",encoder_features.size())
         print("1xxx",x.size())          
