@@ -105,15 +105,15 @@ class OwnLazyHDF5Dataset(ConfigDataset):
 
         # build slice indices for raw and label data sets
         slice_builder = get_slice_builder(raw, label, weight_map, slice_builder_config)
-        self.raw_slices = slice_builder.raw_slices
-        self.label_slices = slice_builder.label_slices
-        self.weight_slices = slice_builder.weight_slices
+        raw_slices = slice_builder.raw_slices
+        label_slices = slice_builder.label_slices
+        weight_slices = slice_builder.weight_slices
 
         self.raw_slices=[]
         self.label_slices=[]
         self.weight_slices=[]
-        print(self.label_slices)
-        for l in self.label_slices:
+        print(label_slices,raw_slices)
+        for l in label_slices:
             print(np.count_nonzero(label[l]),np.count_nonzero(label))
             if np.count_nonzero(label[l])==np.count_nonzero(label):
                 self.raw_slices.append(l)
