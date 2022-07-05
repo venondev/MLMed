@@ -28,7 +28,7 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  acc_batchsize: 8
+  acc_batchsize: 2
   #online_loger: WandBLogger or TensorboardLogger
   online_logger: WandBLogger
   verbose_train_validation: true
@@ -42,7 +42,7 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 200
+  validate_after_iters: 100
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # vielfaches von validate 
@@ -88,9 +88,9 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 1
+  batch_size: 2
   # how many subprocesses to use for data loading
-  num_workers: 10
+  num_workers: 15
   # path to the raw data within the H5
   raw_internal_path: /raw
   # path to the the label data withtin the H5
