@@ -6,6 +6,7 @@ run:
   notes: first complete run
 # model configuration
 model:
+  use_attention_gate: true
   num_levels: 6
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
