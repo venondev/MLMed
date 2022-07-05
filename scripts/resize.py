@@ -13,12 +13,12 @@ for dataset_type in ["train", "val"]:
 
     for idx, file in enumerate(files):
         print(f"{idx}/{len(files)}: {file}")
-        with h5py.File(f"{p}/{file}", "r") as f:
+        with h5py.File(f"{p}/{file}", "r+") as f:
             mask = f["label"][:]
             raw = f["raw"][:]
 
-            raw = pool(torch.from_numpy(raw[None, None]))[0, 0].numpy()
-            mask = pool(torch.from_numpy(mask[None, None]))[0, 0].numpy()
+            # raw = pool(torch.from_numpy(raw[None, None]))[0, 0].numpy()
+            # mask = pool(torch.from_numpy(mask[None, None]))[0, 0].numpy()
 
             # Normalize
             min_val = raw.min()
@@ -26,10 +26,4 @@ for dataset_type in ["train", "val"]:
 
             raw = (raw - min_val) / (max_val - min_val)
 
-            t = f"./data/{dataset_type}_half"
-            if not os.path.isdir(t):
-                os.mkdir(t)
-
-            with h5py.File(f"{t}/{file}", "w") as f2:
-                f2.create_dataset("raw", data=raw)
-                f2.create_dataset("label", data=mask)
+            f["raw"][...] = raw
