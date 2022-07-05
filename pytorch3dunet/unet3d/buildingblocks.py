@@ -326,6 +326,7 @@ class Decoder(nn.Module):
             x = self.joining(torch.zeros_like(encoder_features), x)
         else:
             x = self.joining(encoder_features, x)
+        print("after_block",x.shape())
         x = self.basic_module(x)
         return x
 
