@@ -287,13 +287,14 @@ class Decoder(nn.Module):
                 self.upsampling = InterpolateUpsampling(mode=mode)
                 # concat joining
                 # if use attention gate -> mul
-                self.joining = partial(self._joining, concat=False, mul=use_attention_gate)
+                print("use_attention_gate",use_attention_gate)
+                self.joining = partial(self._joining, mode="concat" if not use_attention_gate else "mul")
             else:
                 # if basic_module=ExtResNetBlock use transposed convolution upsampling and summation joining
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
                                                           kernel_size=conv_kernel_size, scale_factor=scale_factor)
                 # sum joining
-                self.joining = partial(self._joining, concat=False)
+                self.joining = partial(self._joining, mode="sum")
                 # adapt the number of in_channels for the ExtResNetBlock
                 in_channels = out_channels
         
@@ -334,13 +335,15 @@ class Decoder(nn.Module):
         return x
 
     @staticmethod
-    def _joining(encoder_features, x, concat,mul=False):
-        if mul:
+    def _joining(encoder_features, x, mode):
+        assert mode in ["mul", "concat", "sum"]
+        if mode=="mul":
             return encoder_features*x
-        if concat:
+        if mode=="concat":
             return torch.cat((encoder_features, x), dim=1)
-        else:
+        elif mode== "sum":
             return encoder_features + x
+
 
 
 def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
