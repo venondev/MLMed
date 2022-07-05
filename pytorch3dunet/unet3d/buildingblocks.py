@@ -238,12 +238,12 @@ class Encoder(nn.Module):
         x = self.basic_module(x)
         return x
 class AttentionGate(nn.Module):
-    def __init__(self,x_size_in):
+    def __init__(self,x_out_channels):
         super(AttentionGate, self).__init__()
-        print(x_size_in)
-        self.x_resizer=nn.Conv3d(in_channels=x_size_in,out_channels=x_size_in*2,kernel_size=1,stride=1,padding="same")
-        self.encoded_features_resizer=nn.Conv3d(in_channels=x_size_in*2,out_channels=x_size_in*2,kernel_size=3,stride=2)
-        self.final_resizer=nn.Conv3d(in_channels=x_size_in*2,out_channels=1,kernel_size=1,stride=1,padding="same")
+        print(x_out_channels)
+        self.x_resizer=nn.Conv3d(in_channels=x_out_channels*2,out_channels=x_out_channels,kernel_size=1,stride=1,padding="same")
+        self.encoded_features_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=x_out_channels,kernel_size=3,stride=2)
+        self.final_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=1,kernel_size=1,stride=1,padding="same")
         self.relu=nn.ReLU()
         self.sigmoid=nn.Sigmoid()
     def forward(self, encoded_features, x):
@@ -305,7 +305,7 @@ class Decoder(nn.Module):
             # concat joining
             self.joining = partial(self._joining, concat=True)
         if use_attention_gate:
-            self.attention_gate= AttentionGate(in_channels)
+            self.attention_gate= AttentionGate(out_channels)
                 
 
         self.basic_module = basic_module(in_channels, out_channels,
