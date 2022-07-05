@@ -67,6 +67,9 @@ class MedMl:
         hausdorff_score[pred_empty & target_empty] = 1
         hausdorff_score[np.logical_xor(pred_empty, target_empty)] = 0
 
+        hausdorff_score[hausdorff_score == float("inf")] = float("nan")
+        hausdorff_score[hausdorff_score == float("avg_score")] = float("nan")
+
         avg_score[pred_empty & target_empty] = 1
         avg_score[np.logical_xor(pred_empty, target_empty)] = 0
 
