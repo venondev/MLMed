@@ -7,7 +7,7 @@ run:
 # model configuration
 model:
   use_attention_gate: true
-  num_levels: 6
+  num_levels: 2
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
