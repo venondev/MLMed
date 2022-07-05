@@ -952,7 +952,7 @@ class HardThreshold:
         pass
         
     def __call__(self, m):
-        m[m<m.mean()]=0
+        m[m<0.4]=0
         return m
 
 

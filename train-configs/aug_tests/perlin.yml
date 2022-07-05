@@ -2,17 +2,12 @@ loaders:
   train:
     # path to the training datasets
     file_paths:
-      - data/training_conv
+      - data/train
 
     transformer:
       raw:
-        - name: Perlin
+        - name: HardThreshold
           # Size of noise, 64 gives noise which is similar to noise in background of cases
-          res: [64, 64, 64]
-          # Shape of generated noise. Needs to be >= patch size and divisible by res
-          shape: [256, 256, 256]
-          # Mix factor, orig_image + alpha * noise
-          alpha: 0.1
       label:
         - name: Identity
 
