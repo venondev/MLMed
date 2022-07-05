@@ -15,7 +15,7 @@ model:
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcl
+  layer_order: bcl
   # number of features at each level of the U-Net
   f_maps: 32
   # number of groups in the groupnorm
@@ -28,7 +28,7 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  acc_batchsize: 4
+  acc_batchsize: 1
   #online_loger: WandBLogger or TensorboardLogger
   online_logger: WandBLogger
   verbose_train_validation: true
@@ -88,9 +88,9 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 1
+  batch_size: 4
   # how many subprocesses to use for data loading
-  num_workers: 4
+  num_workers: 10
   # path to the raw data within the H5
   raw_internal_path: /raw
   # path to the the label data withtin the H5
@@ -99,22 +99,22 @@ loaders:
   weight_internal_path: null
   # configuration of the train loader
 
-  load_slices: true
-  store_slices: false
+  load_slices: false
+  store_slices: true
 
   train:
     # paths to the training datasets
     file_paths:
-      - data/train_nrom
+      - data/train_half
     slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [128, 128, 128]
+      patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [64, 64, 64]
+      stride_shape: [32, 32, 32]
       # minimum volume of the labels in the patch
       threshold: 0
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -188,16 +188,16 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data/val_nrom
+      - data/val_half
     slice_path: "val_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [128, 128, 128]
+      patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [64, 64, 64]
+      stride_shape: [32, 32, 32]
       # minimum volume of the labels in the patch
       threshold: 0
       # probability of accepting patches which do not fulfil the threshold criterion
