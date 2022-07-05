@@ -314,12 +314,14 @@ class Decoder(nn.Module):
                                          padding=padding)
 
     def forward(self, encoder_features, x):
+        print("0xxx",x.size()) 
         if self.use_attention_gate:
             temp=self.attention_gate(encoder_features,x)
             encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
-        print("after_encoder_features",encoder_features.size())           
+        print("after_encoder_features",encoder_features.size())
+        print("1xxx",x.size())          
         x = self.upsampling(encoder_features=encoder_features, x=x)
-        print("xxx",x.size())
+        print("2xxx",x.size())
 
         
         if self.auto_encoder:
