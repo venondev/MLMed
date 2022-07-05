@@ -38,7 +38,7 @@ class Abstract3DUNet(nn.Module):
 
     def __init__(self, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
                  num_groups=8, num_levels=4, is_segmentation=True, conv_kernel_size=3, pool_kernel_size=2,
-                 conv_padding=1,auto_encoder=False,enable_threshold_layer=False,in_channels=0,in_size=0, **kwargs):
+                 conv_padding=1,auto_encoder=False,enable_threshold_layer=False,in_channels=0,in_size=0,use_attention_gate=False, **kwargs):
         super(Abstract3DUNet, self).__init__()
         if isinstance(f_maps, int):
             f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
@@ -55,7 +55,7 @@ class Abstract3DUNet(nn.Module):
 
         # create decoder path
         self.decoders = create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
-                                        upsample=True,auto_encoder=auto_encoder)
+                                        upsample=True,auto_encoder=auto_encoder,use_attention_gate=use_attention_gate)
 
         # in the last layer a 1×1 convolution reduces the number of output
         # channels to the number of labels

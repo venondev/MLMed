@@ -62,7 +62,7 @@ loss:
 # optimizer configuration
 optimizer:
   # initial learning rate
-  learning_rate: 0.0002
+  learning_rate: 0.01
   # weight decay
   weight_decay: 0.00001
 # evaluation metric

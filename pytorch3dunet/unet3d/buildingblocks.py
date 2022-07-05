@@ -1,7 +1,10 @@
+from audioop import mul
 from functools import partial
+from turtle import forward
+from pandas import concat
 
 import torch
-from torch import nn as nn
+from torch import nn as nn, sigmoid
 from torch.nn import functional as F
 
 
@@ -236,6 +239,22 @@ class Encoder(nn.Module):
             x = self.pooling(x)
         x = self.basic_module(x)
         return x
+class AttentionGate(nn.Module):
+    def __init__(self,x_size_in):
+        self.x_resizer=nn.Conv3d(in_channels=x_size_in,out_channels=x_size_in*2,kernel_size=1,stride=1,padding="same")
+        self.encoded_features_resizer=nn.Conv3d(in_channels=x_size_in*2,out_channels=x_size_in*2,kernel_size=3,stride=2,padding="same")
+        self.final_resizer=nn.Conv3d(in_channels=x_size_in*2,out_channels=1,kernel_size=1,stride=1,padding="same")
+        self.relu=nn.ReLU()
+        self.sigmoid=nn.Sigmoid()
+    def forward(self, encoded_features, x):
+        encoded_features=self.encoded_features_resizer(encoded_features)
+        x=self.x_resizer(x)
+        x=x+encoded_features
+        x=self.relu(x)
+        x=self.final_resizer(x)
+        x=self.sigmoid(x)
+        return x
+
 
 
 class Decoder(nn.Module):
@@ -258,16 +277,19 @@ class Decoder(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, conv_kernel_size=3, scale_factor=(2, 2, 2), basic_module=DoubleConv,
-                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True,auto_encoder=False):
+                 conv_layer_order='gcr', num_groups=8, mode='nearest', padding=1, upsample=True,auto_encoder=False,use_attention_gate=False):
         super(Decoder, self).__init__()
         self.auto_encoder=auto_encoder
+
+        self.use_attention_gate=use_attention_gate
 
         if upsample:
             if basic_module == DoubleConv:
                 # if DoubleConv is the basic_module use interpolation for upsampling and concatenation joining
                 self.upsampling = InterpolateUpsampling(mode=mode)
                 # concat joining
-                self.joining = partial(self._joining, concat=True)
+                # if use attention gate -> mul
+                self.joining = partial(self._joining, concat=True, mul=use_attention_gate)
             else:
                 # if basic_module=ExtResNetBlock use transposed convolution upsampling and summation joining
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
@@ -276,6 +298,9 @@ class Decoder(nn.Module):
                 self.joining = partial(self._joining, concat=False)
                 # adapt the number of in_channels for the ExtResNetBlock
                 in_channels = out_channels
+        if use_attention_gate:
+            self.attention_gate= AttentionGate()
+                
         else:
             # no upsampling
             self.upsampling = NoUpsampling()
@@ -290,8 +315,14 @@ class Decoder(nn.Module):
                                          padding=padding)
 
     def forward(self, encoder_features, x):
-        
+
+        if self.use_attention_gate:
+            temp=self.attention_gate(encoder_features,x)
+            encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
+                
         x = self.upsampling(encoder_features=encoder_features, x=x)
+
+        
         if self.auto_encoder:
             x = self.joining(torch.zeros_like(encoder_features), x)
         else:
@@ -300,7 +331,9 @@ class Decoder(nn.Module):
         return x
 
     @staticmethod
-    def _joining(encoder_features, x, concat):
+    def _joining(encoder_features, x, concat,mul=False):
+        if mul:
+            return encoder_features*x
         if concat:
             return torch.cat((encoder_features, x), dim=1)
         else:
