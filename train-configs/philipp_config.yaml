@@ -97,8 +97,8 @@ loaders:
   weight_internal_path: null
   # configuration of the train loader
 
-  load_slices: true
-  store_slices: false
+  load_slices: false
+  store_slices: true
 
   train:
     # paths to the training datasets
@@ -121,7 +121,7 @@ loaders:
     transformer:
       raw:
         # subtract mean and divide by std dev
-        - name: HardThreshold
+        #- name: HardThreshold
         # - name: Perlin
         #   # Size of noise, 64 gives noise which is similar to noise in background of cases
         #   res: [64, 64, 64]
@@ -204,7 +204,7 @@ loaders:
     # data augmentation
     transformer:
       raw:
-        - name: HardThreshold
+        #- name: HardThreshold
         - name: ToTensor
           expand_dims: true
       label:
