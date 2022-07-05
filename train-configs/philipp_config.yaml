@@ -40,9 +40,9 @@ trainer:
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 20
+  validate_after_iters: 200
   # how many iterations between tensorboard logging
-  log_after_iters: 10
+  log_after_iters: 100
   # vielfaches von validate 
   store_after_val: 3
   # max number of epochs
