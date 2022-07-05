@@ -296,14 +296,15 @@ class Decoder(nn.Module):
                 self.joining = partial(self._joining, concat=False)
                 # adapt the number of in_channels for the ExtResNetBlock
                 in_channels = out_channels
-        if use_attention_gate:
-            self.attention_gate= AttentionGate()
-                
+        
         else:
             # no upsampling
             self.upsampling = NoUpsampling()
             # concat joining
             self.joining = partial(self._joining, concat=True)
+        if use_attention_gate:
+            self.attention_gate= AttentionGate()
+                
 
         self.basic_module = basic_module(in_channels, out_channels,
                                          encoder=False,
