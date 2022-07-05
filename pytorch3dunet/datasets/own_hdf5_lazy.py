@@ -211,7 +211,6 @@ class OwnLazyHDF5Dataset(ConfigDataset):
                 logger.info(f'{len(datasets)} {phase} slices saved in {slice_file_path}')
         for dataset in datasets:
                 dataset.load_file()
-                dataset.load_transformer()
         return datasets
 
     @staticmethod
