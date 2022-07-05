@@ -43,9 +43,9 @@ for dataset_type in ["train", "val"]:
             max_val = raw.max()
 
             raw = (raw - min_val) / (max_val - min_val)
-            raw = clean_data(raw)
+            #raw = clean_data(raw)
 
-            t = f"./data/{dataset_type}_clean"
+            t = f"./data/{dataset_type}_nrom"
             if not os.path.isdir(t):
                 os.mkdir(t)
 
