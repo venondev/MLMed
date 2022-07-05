@@ -947,6 +947,14 @@ class Normalize:
         norm_0_1 = (m - min_val) / (max_val - min_val)
         return norm_0_1
 
+class HardThreshold:
+    def __init__(self, **kwargs):
+        pass
+        
+    def __call__(self, m):
+        m[m<m.mean()]=0
+        return m
+
 
 class AdditiveGaussianNoise:
     def __init__(self, random_state, scale=(0.0, 1.0), sigma=[0, 0.3], execution_probability=0.1, **kwargs):

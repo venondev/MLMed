@@ -20,6 +20,8 @@ class OwnLazyHDF5Dataset(ConfigDataset):
     """
     def load_file(self):
         self.input_file = self.create_h5_file(self.file_path)
+        self.raw_transform = self.transformer.raw_transform()
+
 
 
     def __init__(self, file_path,
@@ -209,6 +211,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
                 logger.info(f'{len(datasets)} {phase} slices saved in {slice_file_path}')
         for dataset in datasets:
                 dataset.load_file()
+                dataset.load_transformer()
         return datasets
 
     @staticmethod
