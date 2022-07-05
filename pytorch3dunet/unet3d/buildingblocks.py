@@ -241,7 +241,7 @@ class AttentionGate(nn.Module):
     def __init__(self,x_out_channels):
         super(AttentionGate, self).__init__()
         self.x_resizer=nn.Conv3d(in_channels=x_out_channels*2,out_channels=x_out_channels,kernel_size=1,stride=1,padding="same")
-        self.encoded_features_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=x_out_channels,kernel_size=3,stride=2)
+        self.encoded_features_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=x_out_channels,kernel_size=1,stride=2)
         self.final_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=1,kernel_size=1,stride=1,padding="same")
         self.relu=nn.ReLU()
         self.sigmoid=nn.Sigmoid()
