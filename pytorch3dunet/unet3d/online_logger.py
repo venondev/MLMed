@@ -215,7 +215,10 @@ class WandBLogger(OnlineLogger):
             p = an[1, an.shape[1] // 2]
             slice_idx = p
         for name, batch in img_sources.items():
-            img_end[name] = np.squeeze(batch)[:, slice_idx]
+            if len(np.squeeze(batch).shape)>2:
+                img_end[name] = np.squeeze(batch)[:, slice_idx]
+            else:
+                img_end[name] = np.squeeze(batch)
 
         class_labels = {
             1: "aneurysm"
