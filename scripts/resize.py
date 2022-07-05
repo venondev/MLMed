@@ -4,7 +4,7 @@ import h5py
 from torch import nn as nn
 import torch
 import numpy as np
-import scipy
+from  scipy import ndimage
 
 
 k=4
@@ -24,7 +24,7 @@ kernel_3d=np.asarray(kernel_3d)
 def clean_data(m):
         t=np.ones_like(m)
         t[m<0.4]=0
-        t=scipy.ndimage.convolve(t,kernel_3d)
+        t=ndimage.convolve(t,kernel_3d)
         return t*m
 for dataset_type in ["train", "val"]:
 
