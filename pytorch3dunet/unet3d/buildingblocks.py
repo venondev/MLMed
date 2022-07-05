@@ -238,11 +238,11 @@ class Encoder(nn.Module):
         x = self.basic_module(x)
         return x
 class AttentionGate(nn.Module):
-    def __init__(self,x_out_channels):
+    def __init__(self,x_out_channels,params):
         super(AttentionGate, self).__init__()
-        self.x_resizer=nn.Conv3d(in_channels=x_out_channels*2,out_channels=x_out_channels,kernel_size=1,stride=1,padding="same")
-        self.encoded_features_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=x_out_channels,kernel_size=1,stride=2)
-        self.final_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=1,kernel_size=1,stride=1,padding="same")
+        self.x_resizer=nn.Conv3d(in_channels=x_out_channels*2,out_channels=params,kernel_size=1,stride=1,padding="same")
+        self.encoded_features_resizer=nn.Conv3d(in_channels=x_out_channels,out_channels=params,kernel_size=1,stride=2)
+        self.final_resizer=nn.Conv3d(in_channels=params,out_channels=1,kernel_size=1,stride=1,padding="same")
         self.relu=nn.ReLU()
         self.sigmoid=nn.Sigmoid()
     def forward(self, encoded_features, x):
@@ -305,7 +305,7 @@ class Decoder(nn.Module):
             # concat joining
             self.joining = partial(self._joining, concat=True)
         if use_attention_gate:
-            self.attention_gate= AttentionGate(out_channels)
+            self.attention_gate= AttentionGate(out_channels,params=out_channels)
                 
 
         self.basic_module = basic_module(in_channels, out_channels,
@@ -319,7 +319,7 @@ class Decoder(nn.Module):
         if self.use_attention_gate:
             temp=self.attention_gate(encoder_features,x)
             encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
-                
+        print("after_encoder_features",encoder_features.size())                
         x = self.upsampling(encoder_features=encoder_features, x=x)
 
         
@@ -327,7 +327,7 @@ class Decoder(nn.Module):
             x = self.joining(torch.zeros_like(encoder_features), x)
         else:
             x = self.joining(encoder_features, x)
-        print("after_block",x.size())
+        
         x = self.basic_module(x)
         return x
 
