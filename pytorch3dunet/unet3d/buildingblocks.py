@@ -303,7 +303,7 @@ class Decoder(nn.Module):
             # concat joining
             self.joining = partial(self._joining, concat=True)
         if use_attention_gate:
-            self.attention_gate= AttentionGate()
+            self.attention_gate= AttentionGate(in_channels)
                 
 
         self.basic_module = basic_module(in_channels, out_channels,
