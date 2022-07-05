@@ -99,7 +99,7 @@ loaders:
   # configuration of the train loader
 
   load_slices: false
-  store_slices: false
+  store_slices: true
 
   train:
     # paths to the training datasets
