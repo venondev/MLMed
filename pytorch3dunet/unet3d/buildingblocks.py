@@ -246,10 +246,8 @@ class AttentionGate(nn.Module):
         self.relu=nn.ReLU()
         self.sigmoid=nn.Sigmoid()
     def forward(self, encoded_features, x):
-        print("x",x.size(),"encoded_features",encoded_features.size())
         encoded_features=self.encoded_features_resizer(encoded_features)
         x=self.x_resizer(x)
-        print("x",x.size(),"encoded_features",encoded_features.size())
         x=x+encoded_features
         x=self.relu(x)
         x=self.final_resizer(x)
@@ -319,8 +317,9 @@ class Decoder(nn.Module):
         if self.use_attention_gate:
             temp=self.attention_gate(encoder_features,x)
             encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
-        print("after_encoder_features",encoder_features.size())                
+        print("after_encoder_features",encoder_features.size())               
         x = self.upsampling(encoder_features=encoder_features, x=x)
+        print("xxx",x.size())
 
         
         if self.auto_encoder:
