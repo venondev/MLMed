@@ -1,10 +1,8 @@
-from audioop import mul
+
 from functools import partial
-from turtle import forward
-from pandas import concat
 
 import torch
-from torch import nn as nn, sigmoid
+from torch import nn as nn
 from torch.nn import functional as F
 
 
@@ -368,7 +366,7 @@ def create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_pa
     return nn.ModuleList(encoders)
 
 
-def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, upsample,auto_encoder=False):
+def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups, upsample,auto_encoder=False,use_attention_gate=False):
     # create decoder path consisting of the Decoder modules. The length of the decoder list is equal to `len(f_maps) - 1`
     decoders = []
     reversed_f_maps = list(reversed(f_maps))
@@ -395,7 +393,7 @@ def create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_
                           conv_kernel_size=conv_kernel_size,
                           num_groups=num_groups,
                           padding=conv_padding,
-                          upsample=_upsample,auto_encoder=auto_encoder)
+                          upsample=_upsample,auto_encoder=auto_encoder,use_attention_gate=use_attention_gate)
         decoders.append(decoder)
     return nn.ModuleList(decoders)
 
