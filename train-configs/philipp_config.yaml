@@ -7,7 +7,7 @@ run:
 # model configuration
 model:
   # model class, e.g. UNet3D, ResidualUNet3D
-  name: UNet3D
+  name: ResidualUNet3D
   # number of input channels to the model
   in_channels: 1
   # number of output channels
@@ -67,7 +67,7 @@ optimizer:
 # evaluation metric
 eval_metric:
   # use average precision metric
-  name: MeanIoU
+  name: MedMl
 # learning rate scheduler configuration
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
@@ -96,18 +96,23 @@ loaders:
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
   # configuration of the train loader
+
+  load_slices: true
+  store_slices: false
+
   train:
     # paths to the training datasets
     file_paths:
       - data_norm/train
+    slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [128, 128, 128]
+      patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [64, 64, 64]
+      stride_shape: [32, 32, 32]
       # minimum volume of the labels in the patch
       threshold: 0
       # probability of accepting patches which do not fulfil the threshold criterion
@@ -126,17 +131,17 @@ loaders:
         #   # Mix factor, orig_image + alpha * noise
         #   alpha: 0.1
         #   randomly flips the volume in one of the axis
-        - name: AneuInsertion
-          # Path to pick examples from
-          path: data_norm/train
-          # Padding around an aneurysm
-          padding: 10
-          # How many insert iterations / How many aneurysms to insert
-          iters: 3
-          # label or raw
-          type: raw
-          # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
-          crop: False
+        # - name: AneuInsertion
+        #   # Path to pick examples from
+        #   path: data_norm/train
+        #   # Padding around an aneurysm
+        #   padding: 10
+        #   # How many insert iterations / How many aneurysms to insert
+        #   iters: 3
+        #   # label or raw
+        #   type: raw
+        #   # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
+        #   crop: False
 
         # - name: Insertion
         #   # Path to pick examples from
@@ -158,12 +163,12 @@ loaders:
         - name: ToTensor
           expand_dims: true
       label:
-        - name: AneuInsertion
-          path: data_norm/train
-          padding: 10
-          iters: 3
-          type: label
-          crop: False
+        # - name: AneuInsertion
+        #   path: data_norm/train
+        #   padding: 10
+        #   iters: 3
+        #   type: label
+        #   crop: False
         # - name: Insertion
         #   path: data_norm/train
         #   min_patch_size: [32, 32, 32]
@@ -183,14 +188,15 @@ loaders:
     # paths to the val datasets
     file_paths:
       - data_norm/val
+    slice_path: "val_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [128, 128, 128]
+      patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [64, 64, 64]
+      stride_shape: [32, 32, 32]
       # minimum volume of the labels in the patch
       threshold: 0
       # probability of accepting patches which do not fulfil the threshold criterion
