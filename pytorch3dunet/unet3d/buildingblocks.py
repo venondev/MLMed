@@ -288,14 +288,12 @@ class Decoder(nn.Module):
                 # concat joining
                 # if use attention gate -> mul
                 self.joining = partial(self._joining, mode="concat" if not use_attention_gate else "mul")
-                if use_attention_gate:
-                    in_channels = out_channels
             else:
                 # if basic_module=ExtResNetBlock use transposed convolution upsampling and summation joining
                 self.upsampling = TransposeConvUpsampling(in_channels=in_channels, out_channels=out_channels,
                                                           kernel_size=conv_kernel_size, scale_factor=scale_factor)
                 # sum joining
-                self.joining = partial(self._joining, mode="sum")
+                self.joining = partial(self._joining, mode="sum" if not use_attention_gate else "mul")
                 # adapt the number of in_channels for the ExtResNetBlock
                 in_channels = out_channels
         
