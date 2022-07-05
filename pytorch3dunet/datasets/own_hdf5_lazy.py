@@ -109,6 +109,15 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         self.label_slices = slice_builder.label_slices
         self.weight_slices = slice_builder.weight_slices
 
+        self.raw_slices=[]
+        self.label_slices=[]
+        self.weight_slices=[]
+        for l in self.label_slices:
+            if np.count_nonzero(label[l])==np.count_nonzero(label):
+                self.raw_slices.append(l)
+                self.label_slices.append(l)
+                self.weight_slices.append(l)
+
         self.patch_count = len(self.raw_slices)
         self.input_file=None
         logger.info(f'Number of patches: {self.patch_count}')
