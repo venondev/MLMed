@@ -98,7 +98,7 @@ loaders:
   weight_internal_path: null
   # configuration of the train loader
 
-  load_slices: true
+  load_slices: false
   store_slices: false
 
   train:
