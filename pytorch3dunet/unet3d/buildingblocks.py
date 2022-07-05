@@ -317,7 +317,7 @@ class Decoder(nn.Module):
         if self.use_attention_gate:
             temp=self.attention_gate(encoder_features,x)
             encoder_features = self.upsampling(encoder_features=encoder_features, x=temp)
-        print("after_encoder_features",encoder_features.size())               
+        print("after_encoder_features",encoder_features.size())           
         x = self.upsampling(encoder_features=encoder_features, x=x)
         print("xxx",x.size())
 
@@ -326,7 +326,7 @@ class Decoder(nn.Module):
             x = self.joining(torch.zeros_like(encoder_features), x)
         else:
             x = self.joining(encoder_features, x)
-        
+        print("end_size",x.size())
         x = self.basic_module(x)
         return x
 
