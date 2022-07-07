@@ -142,7 +142,11 @@ class EvalScoreTracker:
                 if key not in self.scores:
                     self.scores[key] = RunningAverage()
 
-                self.scores[key].update(detailed_score[key], n)
+                scores = detailed_score[key]
+                clean_scores = scores[~torch.isnan(scores)]
+
+                if len(clean_scores) > 0:
+                    self.scores[key].update(clean_scores.mean(), len(clean_scores))
         else:
             self.total_score.update(value.item(), n)
 

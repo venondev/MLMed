@@ -32,11 +32,11 @@ class DiceCoefficient:
 
 
 def compute_volume_bias(volume_gt, volume_pred):
-    return 1 / np.mean(np.abs(volume_gt - volume_pred))
+    return np.clip(1 / np.mean(np.abs(volume_gt - volume_pred)), 0, 1)
 
 
 def compute_volume_std_dev(volume_gt, volume_pred):
-    return 1 / np.std(np.abs(volume_gt - volume_pred))
+    return np.clip(1 / np.std(np.abs(volume_gt - volume_pred)), 0, 1)
 
 
 def compute_volume_pearson(volume_gt, volume_pred):
@@ -51,36 +51,21 @@ class MedMl:
         assert input.dim() == 5
         assert input.size() == target.size()
 
-        jaccard_score = self.compute_jaccard(input, target).item()
-
-
         input_bin = (input > 0.5).long()
 
-        # Compute Hausdorff distance and average surface distance and cover edge cases
-        target_np = target.cpu().detach().numpy()
-        input_np = input_bin.cpu().detach().numpy()
-
-        target_empty = np.logical_not(target_np.any(axis=(1, 2, 3, 4)))
-        pred_empty = np.logical_not(input_np.any(axis=(1, 2, 3, 4)))
-
-        hausdorff_score = 1 / compute_hausdorff_distance(input_bin, target)
-        avg_score = 1 / compute_average_surface_distance(input_bin, target)
-
-        # hausdorff_score[pred_empty & target_empty] = 1
-        # hausdorff_score[np.logical_xor(pred_empty, target_empty)] = 0
-        # avg_score[pred_empty & target_empty] = 1
-        # avg_score[np.logical_xor(pred_empty, target_empty)] = 0
+        hausdorff_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]), compute_hausdorff_distance(input_bin, target))
+        avg_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]), compute_average_surface_distance(input_bin, target))
+        jaccard_score = self.compute_jaccard(input, target)
+        overlap = (torch.logical_and(input_bin, target).sum(dim=(1, 2, 3, 4)) >= 1).float()
 
         avg_score[avg_score == float("inf")] = float("nan")
         hausdorff_score[hausdorff_score == float("inf")] = float("nan")
 
-        overlap = (torch.logical_and(input_bin, target).sum(dim=(1, 2, 3, 4)) >= 1).float().mean()
-
         detailed_score = {
-            "hausdorff": torch.nanmean(hausdorff_score).item(),
-            "avg_dist": torch.nanmean(avg_score).item(),
+            "hausdorff": hausdorff_score,
+            "avg_dist": avg_score,
             "jaccard": jaccard_score,
-            "overlap": overlap.item()
+            "overlap": overlap
         }
 
         # Values for final calculation
@@ -160,7 +145,7 @@ class MeanIoU:
             mean_iou = torch.nanmean(torch.tensor(per_channel_iou))
             per_batch_iou.append(mean_iou)
 
-        return torch.nanmean(torch.tensor(per_batch_iou))
+        return torch.tensor(per_batch_iou)
 
     def _binarize_predictions(self, input, n_classes):
         """
@@ -180,7 +165,7 @@ class MeanIoU:
         Computes IoU for a given target and prediction tensors
         """
         if prediction.any() and not target.any():
-            return torch.float("nan")
+            return torch.tensor(float("nan"))
         return torch.sum(prediction & target).float() / torch.clamp(torch.sum(prediction | target).float(), min=1e-8)
 
 
