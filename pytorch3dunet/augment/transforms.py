@@ -9,7 +9,9 @@ from scipy.ndimage import rotate, zoom, map_coordinates, gaussian_filter, convol
 from skimage import measure
 from skimage.filters import gaussian
 from skimage.segmentation import find_boundaries
-from scipy.ndimage import percentile_filter, binary_dilation, maximum_filter, minimum_filter, generic_filter, binary_erosion, shift
+from scipy.ndimage import percentile_filter, binary_dilation, maximum_filter, minimum_filter, generic_filter, \
+    binary_erosion, shift
+from scipy import ndimage as ndi
 
 # WARN: use fixed random state for reproducibility; if you want to randomize on each run seed with `time.time()` e.g.
 GLOBAL_RANDOM_STATE = np.random.RandomState(47)
@@ -19,10 +21,11 @@ class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         for t in self.transforms:
-            m = t(m)
+            m = t(m, **kwargs)
         return m
+
 
 class RandomScale:
     def __init__(self, random_state, sigma=[0.7, 1.3], order=0, execution_probalility=0.5, **kwargs):
@@ -31,7 +34,7 @@ class RandomScale:
         self.order = order
         self.execution_probability = execution_probalility
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() > self.execution_probability:
             return m
 
@@ -58,6 +61,7 @@ class RandomScale:
             stop = start + m_shape
             return zoomed[Slice3D(start, stop).tuple]
 
+
 class RandomTranslate:
     def __init__(self, random_state, sigma=[0, 64], order=0, execution_probalility=0.5, **kwargs):
         self.random_state = random_state
@@ -65,7 +69,7 @@ class RandomTranslate:
         self.order = order
         self.execution_probability = execution_probalility
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() > self.execution_probability:
             return m
 
@@ -92,7 +96,7 @@ class RandomFlip:
         self.axis_prob = axis_prob
         self.execution_probability = execution_probalility
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
 
         if self.random_state.uniform() > self.execution_probability:
@@ -128,6 +132,7 @@ class Slice3D:
 
         return tuple(slices)
 
+
 class ShrinkMask:
 
     def __init__(self, iterations, min_size, **kwargs):
@@ -135,28 +140,75 @@ class ShrinkMask:
         self.min_size = min_size
         pass
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         for i in range(self.iterations):
             if m.sum() < self.min_size:
                 break
             m = binary_erosion(m, iterations=1)
         return m
 
+
+class AddLabelPoint:
+
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, m, label, **kwargs):
+
+        label, num_features = ndi.label(label)
+
+        label_one = np.zeros(label.shape)
+        choosen_coords = []
+        for i in range(1, num_features + 1):
+            points = np.where(label == i)
+            n = points[0].shape[0]
+            choice = np.random.randint(0, n)
+            coords = tuple([points[i][choice] for i in range(1, 4)])
+            choosen_coords.append(coords)
+        
+                
+        idx = np.mgrid[:m.shape[0], :m.shape[1], :m.shape[2]]
+        ret = np.zeros(m.shape)
+        print(idx.shape, ret.shape, m.shape)
+        for pic in choosen_coords:
+            t2 = np.clip(1 / np.sum((idx - np.array(pic)[:, None, None, None]) ** 2, axis=0), 0, 1)
+
+            if ret is None:
+                ret = t2
+            else:
+                ret = np.max([ret, t2], axis=0)
+
+        m = np.concatenate([m[None], ret[None]], axis=0)
+
+        return m
+
+
 class ArteryMask:
 
     def __init__(self, pmax, **kwargs):
         self.pmax = pmax
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         m = m[None]
         img_b = m.copy()
         img_b[img_b >= self.pmax] = 1
         img_b[img_b < self.pmax] = 0
         img_b = minimum_filter(img_b, size=2)
         img_b = binary_dilation(img_b, iterations=3)
-        
+
         ret = np.concatenate([m, img_b])
         return ret
+
+class BinaryClosing:
+
+    def __init__(self, iters, **kwargs):
+        self.iters = iters
+
+    def __call__(self, m, **kwargs):
+        m = ndi.binary_closing(m, iterations=self.iters)
+
+        return m
+
 
 
 class AneuInsertion:
@@ -209,7 +261,7 @@ class AneuInsertion:
 
         return x, y, z
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() > self.execution_probability:
             return m
 
@@ -280,7 +332,6 @@ class Perlin:
         self.shape = shape
         self.execution_probability = execution_probalility
 
-
     def generate_perlin_noise_3d(self):
         def f(t):
             return 6 * t ** 5 - 15 * t ** 4 + 10 * t ** 3
@@ -321,7 +372,7 @@ class Perlin:
         n1 = (1 - t[:, :, :, 1]) * n01 + t[:, :, :, 1] * n11
         return ((1 - t[:, :, :, 2]) * n0 + t[:, :, :, 2] * n1)
 
-    def __call__(self, x):
+    def __call__(self, x, **kwargs):
         if self.random_state.uniform() < self.execution_probability:
             noise = self.generate_perlin_noise_3d()
             n, l, k = x.shape
@@ -358,7 +409,7 @@ class Insertion:
         pick = self.random_state.choice(self.cases)
         return h5py.File(f"{self.path}/{pick}", mode="r")
 
-    def __call__(self, x):
+    def __call__(self, x, **kwargs):
         if self.execution_probability > self.random_state.uniform():
             return x
 
@@ -387,8 +438,16 @@ class Insertion:
 
 # Just for debugging
 class Identity:
-    def __call__(self, x):
+    def __call__(self, x, **kwargs):
         return x
+
+class ConcatArtery:
+    def __init__(self, **kwargs):
+        pass
+
+    def __call__(self, x, artery, **kwargs):
+        t = torch.cat((x, artery), 0)
+        return t
 
 
 class RandomRotate90:
@@ -406,7 +465,7 @@ class RandomRotate90:
         # always rotate around z-axis
         self.axis = (1, 2)
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
 
         # pick number of rotations at random
@@ -439,7 +498,7 @@ class RandomRotate:
         self.mode = mode
         self.order = order
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         axis = self.axes[self.random_state.randint(len(self.axes))]
         angle = self.random_state.randint(-self.angle_spectrum, self.angle_spectrum)
 
@@ -452,30 +511,30 @@ class RandomRotate:
 
         return m
 
+
 class Threshold:
     def __init__(self, low, high, **kwargs):
         self.low = low
         self.high = high
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         m[m < self.low] = 0
         m[m > self.high] = 1
 
         return m
 
+
 class PercentileThreshold:
-    def __init__(self, low, high, **kwargs):
-        self.low = low
-        self.high = high
+    def __init__(self, pmin, pmax, **kwargs):
+        self.low = pmin
+        self.high = pmax
 
-    def __call__(self, m):
-        low_perc = np.percentile(m, self.low)
-        high_perc = np.percentile(m, self.high)
-
-        m[m < low_perc] = 0
-        m[m > high_perc] = 1
+    def __call__(self, m, **kwargs):
+        m[m < self.low] = 0
+        m[m > self.high] = 1
 
         return m
+
 
 class RandomContrast:
     """
@@ -489,7 +548,7 @@ class RandomContrast:
         self.mean = mean
         self.execution_probability = execution_probability
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() < self.execution_probability:
             alpha = self.random_state.uniform(self.alpha[0], self.alpha[1])
             result = self.mean + alpha * (m - self.mean)
@@ -522,7 +581,7 @@ class ElasticDeformation:
         self.execution_probability = execution_probability
         self.apply_3d = apply_3d
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() < self.execution_probability:
             assert m.ndim in [3, 4]
 
@@ -562,7 +621,7 @@ class CropToFixed:
         self.crop_y, self.crop_x = size
         self.centered = centered
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         def _padding(pad_total):
             half_total = pad_total // 2
             return (half_total, pad_total - half_total)
@@ -632,7 +691,7 @@ class AbstractLabelToBoundary:
         self.aggregate_affinities = aggregate_affinities
         self.append_label = append_label
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         """
         Extract boundaries from a given 3D label tensor.
         :param m: input 3D tensor
@@ -684,7 +743,7 @@ class StandardLabelToBoundary:
         self.mode = mode
         self.foreground = foreground
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         assert m.ndim == 3
 
         boundaries = find_boundaries(m, connectivity=2, mode=self.mode)
@@ -711,7 +770,7 @@ class BlobsWithBoundary:
         self.mode = mode
         self.append_label = append_label
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         assert m.ndim == 3
 
         # get the segmentation mask
@@ -738,7 +797,7 @@ class BlobsToMask:
         self.boundary = boundary
         self.append_label = append_label
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         assert m.ndim == 3
 
         # get the segmentation mask
@@ -861,7 +920,7 @@ class LabelToBoundaryAndAffinities:
         self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
                                      ignore_index=ignore_index)
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         boundary = self.l2b(m)
         affinities = self.l2a(m)
         return np.concatenate((boundary, affinities), axis=0)
@@ -873,7 +932,7 @@ class LabelToMaskAndAffinities:
         self.l2a = LabelToAffinities(offsets=xy_offsets, z_offsets=z_offsets, append_label=append_label,
                                      ignore_index=ignore_index)
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         mask = m > self.background
         mask = np.expand_dims(mask.astype(np.uint8), axis=0)
         affinities = self.l2a(m)
@@ -886,14 +945,13 @@ class Standardize:
     """
 
     def __init__(self, eps=1e-10, mean=None, std=None, channelwise=False, **kwargs):
-        if mean is not None or std is not None:
-            assert mean is not None and std is not None
+        assert mean is not None and std is not None
         self.mean = mean
         self.std = std
         self.eps = eps
         self.channelwise = channelwise
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.mean is not None:
             mean, std = self.mean, self.std
         else:
@@ -918,7 +976,7 @@ class PercentileNormalizer:
         self.pmax = pmax
         self.channelwise = channelwise
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.channelwise:
             axes = list(range(m.ndim))
             # average across channels
@@ -948,7 +1006,7 @@ class Normalize:
     def __init__(self, **kwargs):
         pass
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         min_val = m.min()
         max_val = m.max()
 
@@ -963,7 +1021,7 @@ class AdditiveGaussianNoise:
         self.scale = scale
         self.sigma = sigma
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() < self.execution_probability:
             std = self.random_state.uniform(self.scale[0], self.scale[1])
             gaussian_noise = self.random_state.normal(0, std, size=m.shape)
@@ -979,7 +1037,7 @@ class AdditivePoissonNoise:
         self.lam = lam
         self.sigma = sigma
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         if self.random_state.uniform() < self.execution_probability:
             lam = self.random_state.uniform(self.lam[0], self.lam[1])
             poisson_noise = self.random_state.poisson(lam, size=m.shape)
@@ -999,7 +1057,7 @@ class ToTensor:
         self.expand_dims = expand_dims
         self.dtype = dtype
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         assert m.ndim in [3, 4], 'Supports only 3D (DxHxW) or 4D (CxDxHxW) images'
         # add channel dimension
         if self.expand_dims and m.ndim == 3:
@@ -1023,7 +1081,7 @@ class Relabel:
         if ignore_label is not None:
             assert append_original, "ignore_label present, so append_original must be true, so that one can localize the ignore region"
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         orig = m
         if self.run_cc:
             # assign 0 to the ignore region
@@ -1040,12 +1098,12 @@ class Identity:
     def __init__(self, **kwargs):
         pass
 
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         return m
 
 
 class RgbToLabel:
-    def __call__(self, img):
+    def __call__(self, img, **kwargs):
         img = np.array(img)
         assert img.ndim == 3 and img.shape[2] == 3
         result = img[..., 0] * 65536 + img[..., 1] * 256 + img[..., 2]
@@ -1053,7 +1111,7 @@ class RgbToLabel:
 
 
 class LabelToTensor:
-    def __call__(self, m):
+    def __call__(self, m, **kwargs):
         m = np.array(m)
         return torch.from_numpy(m.astype(dtype='int64'))
 
@@ -1063,7 +1121,7 @@ class GaussianBlur3D:
         self.sigma = sigma
         self.execution_probability = execution_probability
 
-    def __call__(self, x):
+    def __call__(self, x, **kwargs):
         if random.random() < self.execution_probability:
             sigma = random.uniform(self.sigma[0], self.sigma[1])
             x = gaussian(x, sigma=sigma)
@@ -1076,6 +1134,9 @@ class Transformer:
         self.phase_config = phase_config
         self.config_base = base_config
         self.seed = GLOBAL_RANDOM_STATE.randint(10000000)
+
+    def artery_transform(self):
+        return self._create_transform('artery')
 
     def raw_transform(self):
         return self._create_transform('raw')
