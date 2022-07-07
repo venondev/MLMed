@@ -21,3 +21,6 @@ data
 train_datasets.pkl
 val_datasets.pkl
 wandb/*
+
+train_slices.pkl
+val_slices.pkl
