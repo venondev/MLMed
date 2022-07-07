@@ -5,6 +5,7 @@ import torch
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
 from pytorch3dunet.unet3d.utils import get_logger, get_class
+from scipy import ndimage as ndi
 
 logger = get_logger('Dataset')
 
@@ -135,30 +136,81 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing more than `1 - threshold` of ignore_index label
     """
 
-    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, ignore_index=(0,),
-                 threshold=0.6, slack_acceptance=0.01, **kwargs):
+    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, border, ignore_index=(0,),
+                 threshold=0.6, slack_acceptance=0.01, raw_threshold = 0.01, **kwargs):
         super().__init__(raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
             return
 
         rand_state = np.random.RandomState(47)
 
+        label_labels, num_labels = ndi.label(label_dataset)
+
+        upper_perc = np.percentile(raw_dataset, 99)
+
+        unique_aneus = np.unique(label_labels)
+        print("unique_aneus in this set", unique_aneus)
+
+        label_volume = np.zeros(num_labels)
+        for i in range(1, num_labels + 1):
+            m = label_labels[label_labels == i]
+
+            volume = m.sum()
+
+            t = np.zeros(label_dataset.shape)
+            t[label_labels == i] = 1
+
+            label_volume[i - 1] = volume
+
         def ignore_predicate(raw_label_idx):
             label_idx = raw_label_idx[1]
             patch = np.copy(label_dataset[label_idx])
             for ii in ignore_index:
                 patch[patch == ii] = 0
-            non_ignore_counts = np.count_nonzero(patch != 0)
-            non_ignore_counts = non_ignore_counts / patch.size
-            return non_ignore_counts > threshold or rand_state.rand() < slack_acceptance
+
+            patch_center = patch[border[0]:-border[0], border[1]:-border[1], border[2]:-border[2]]
+            aneu_volume = np.count_nonzero(patch_center != 0)
+
+            if aneu_volume != 0:
+                label_patch = label_labels[label_idx]
+                label_patch_center = label_patch[border[0]:-border[0], border[1]:-border[1], border[2]:-border[2]]
+
+                total_volume = 0
+                for sep_aneu in np.unique(label_patch_center):
+                    if sep_aneu == 0:
+                        continue
+                    total_volume += label_volume[sep_aneu - 1]
+
+                print("Volume:", aneu_volume, total_volume, aneu_volume / total_volume, label_idx)
+                # if total_volume > 1000:
+                #     return False
+
+                return (aneu_volume / total_volume) >= threshold or rand_state.rand() < slack_acceptance
+
+            # elif np.count_nonzero(patch != 0) == 0:
+            #     raw_patch = raw_dataset[label_idx]
+            #     print(raw_patch.size, raw_patch.shape)
+            #     t2 = (raw_patch > upper_perc).sum() / raw_patch.size
+            #     print("FOO", t2, raw_threshold)
+            #     t = t2 > raw_threshold
+            #     if t:
+            #         print("Including high Background")
+            #     return t or rand_state.rand() < slack_acceptance
+
+            return rand_state.rand() < slack_acceptance
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
-        # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
-        self._raw_slices = list(raw_slices)
-        self._label_slices = list(label_slices)
+        if len(filtered_slices) == 0:
+            print("Empty not used")
+            self._raw_slices = []
+            self._label_slices = []
+        else:
+            # unzip and save slices
+            raw_slices, label_slices = zip(*filtered_slices)
+            self._raw_slices = list(raw_slices)
+            self._label_slices = list(label_slices)
 
 
 def _loader_classes(class_name):
@@ -294,6 +346,6 @@ def calculate_stats(images):
     flat = np.concatenate(
         [img.ravel() for img in images]
     )
-    return {'pmin': np.percentile(flat, 1), 'pmax': np.percentile(flat, 99.6), 'mean': np.mean(flat),
+    return {'pmin': np.percentile(flat, 0.5), 'pmax': np.percentile(flat, 99.5), 'mean': np.mean(flat),
             'std': np.std(flat)}
             

@@ -198,7 +198,7 @@ class WandBLogger(OnlineLogger):
                 prediction = net.final_activation(prediction)
 
         inputs_map = {
-            'inputs': input[0],
+            'inputs': input[0][0],
             'targets': target[0],
             'predictions': prediction[0]
         }
