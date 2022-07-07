@@ -1,4 +1,5 @@
 import importlib
+from matplotlib.pyplot import axis
 
 import numpy as np
 from skimage import measure
@@ -52,6 +53,7 @@ class MedMl:
 
         jaccard_score = self.compute_jaccard(input, target).item()
 
+
         input_bin = (input > 0.5).long()
 
         # Compute Hausdorff distance and average surface distance and cover edge cases
@@ -61,19 +63,24 @@ class MedMl:
         target_empty = np.logical_not(target_np.any(axis=(1, 2, 3, 4)))
         pred_empty = np.logical_not(input_np.any(axis=(1, 2, 3, 4)))
 
-        hausdorff_score = 1 / torch.max(torch.ones(input_bin.shape[0]), compute_hausdorff_distance(input_bin, target))
-        avg_score = 1 / torch.max(torch.ones(input_bin.shape[0]), compute_average_surface_distance(input_bin, target))
+        hausdorff_score = 1 / compute_hausdorff_distance(input_bin, target)
+        avg_score = 1 / compute_average_surface_distance(input_bin, target)
 
-        hausdorff_score[pred_empty & target_empty] = 1
-        hausdorff_score[np.logical_xor(pred_empty, target_empty)] = 0
+        # hausdorff_score[pred_empty & target_empty] = 1
+        # hausdorff_score[np.logical_xor(pred_empty, target_empty)] = 0
+        # avg_score[pred_empty & target_empty] = 1
+        # avg_score[np.logical_xor(pred_empty, target_empty)] = 0
 
-        avg_score[pred_empty & target_empty] = 1
-        avg_score[np.logical_xor(pred_empty, target_empty)] = 0
+        avg_score[avg_score == float("inf")] = float("nan")
+        hausdorff_score[hausdorff_score == float("inf")] = float("nan")
+
+        overlap = (torch.logical_and(input_bin, target).sum(dim=(1, 2, 3, 4)) >= 1).float().mean()
 
         detailed_score = {
-            "hausdorff": hausdorff_score.mean().item(),
-            "avg_dist": avg_score.mean().item(),
-            "jaccard": jaccard_score
+            "hausdorff": torch.nanmean(hausdorff_score).item(),
+            "avg_dist": torch.nanmean(avg_score).item(),
+            "jaccard": jaccard_score,
+            "overlap": overlap.item()
         }
 
         # Values for final calculation
@@ -150,10 +157,10 @@ class MeanIoU:
                 per_channel_iou.append(self._jaccard_index(binary_prediction[c], _target[c]))
 
             assert per_channel_iou, "All channels were ignored from the computation"
-            mean_iou = torch.mean(torch.tensor(per_channel_iou))
+            mean_iou = torch.nanmean(torch.tensor(per_channel_iou))
             per_batch_iou.append(mean_iou)
 
-        return torch.mean(torch.tensor(per_batch_iou))
+        return torch.nanmean(torch.tensor(per_batch_iou))
 
     def _binarize_predictions(self, input, n_classes):
         """
@@ -172,6 +179,8 @@ class MeanIoU:
         """
         Computes IoU for a given target and prediction tensors
         """
+        if prediction.any() and not target.any():
+            return torch.float("nan")
         return torch.sum(prediction & target).float() / torch.clamp(torch.sum(prediction | target).float(), min=1e-8)
 
 

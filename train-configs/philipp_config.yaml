@@ -2,10 +2,12 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 run: 
-  name: Add Augmentation
+  name: reduce batchsize 
   notes: first complete run
 # model configuration
 model:
+  use_attention_gate: true
+  #num_levels: 3
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
@@ -13,7 +15,7 @@ model:
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcr
+  layer_order: gcl
   # number of features at each level of the U-Net
   f_maps: 32
   # number of groups in the groupnorm
@@ -26,7 +28,7 @@ model:
   is_segmentation: true
 # trainer configuration
 trainer:
-  acc_batchsize: 8
+  acc_batchsize: 1
   #online_loger: WandBLogger or TensorboardLogger
   online_logger: WandBLogger
   verbose_train_validation: true
@@ -35,39 +37,39 @@ trainer:
   # path to the checkpoint directory
   checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
-  resume: null
+  resume: model/base_model.pytorch #
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
   # make sure to decrease the learning rate in the optimizer config accordingly
-  pre_trained: null
+  pre_trained: base.pytorch #base.pytorch
   # how many iterations between validations
-  validate_after_iters: 200
+  validate_after_iters: 100
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # vielfaches von validate 
   store_after_val: 3
   # max number of epochs
-  max_num_epochs: 200
+  max_num_epochs: 100000000
   # max number of iterations
-  max_num_iterations: 10000000
+  max_num_iterations: 100000000
   # model with higher eval score is considered better
   eval_score_higher_is_better: true
 # loss function configuration
 loss:
   # use BCE loss for training
   name: BCEDiceLoss
-  alphs: 0.5
-  beta: 0.5
+  alphs: 1
+  beta: 1
 
 # optimizer configuration
 optimizer:
   # initial learning rate
-  learning_rate: 0.0002
+  learning_rate: 0.0001
   # weight decay
   weight_decay: 0.00001
 # evaluation metric
 eval_metric:
   # use average precision metric
-  name: MeanIoU
+  name: MedMl
 # learning rate scheduler configuration
 lr_scheduler:
   # reduce learning rate when evaluation metric plateaus
@@ -86,9 +88,9 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 1
+  batch_size: 4
   # how many subprocesses to use for data loading
-  num_workers: 8
+  num_workers: 4
   # path to the raw data within the H5
   raw_internal_path: /raw
   # path to the the label data withtin the H5
@@ -96,31 +98,34 @@ loaders:
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
   # configuration of the train loader
+
+  load_slices: true
+  store_slices: false
+
   train:
     # paths to the training datasets
     file_paths:
-      - data_norm/train
+      - data/train_half
+    slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [128, 128, 128]
+      patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [64, 64, 64]
+      stride_shape: [16, 16, 16]
+
+      border: [16, 16, 16]
       # minimum volume of the labels in the patch
-      threshold: 0
+      threshold: 1
       # probability of accepting patches which do not fulfil the threshold criterion
       slack_acceptance: 0.01
 
     transformer:
       raw:
         # subtract mean and divide by std dev
-
-        - name: HardThreshold
-        - name: Standardize
-        - name: RandomContrast
-
+        #- name: HardThreshold
         # - name: Perlin
         #   # Size of noise, 64 gives noise which is similar to noise in background of cases
         #   res: [64, 64, 64]
@@ -129,17 +134,17 @@ loaders:
         #   # Mix factor, orig_image + alpha * noise
         #   alpha: 0.1
         #   randomly flips the volume in one of the axis
-        - name: AneuInsertion
-          # Path to pick examples from
-          path: data_norm/train
-          # Padding around an aneurysm
-          padding: 10
-          # How many insert iterations / How many aneurysms to insert
-          iters: 3
-          # label or raw
-          type: raw
-          # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
-          crop: False
+        # - name: AneuInsertion
+        #   # Path to pick examples from
+        #   path: data/train_half
+
+        #   padding: 10
+        #   execution_probalility: 0.5
+        #   iters: 3
+        #   # label or raw
+        #   type: raw
+        #   # True: Aneurysm might get cut off a bit, when inserted slightly outside of image. False: Aneurysms always in bounds of image
+        #   crop: False
 
         # - name: Insertion
         #   # Path to pick examples from
@@ -151,9 +156,11 @@ loaders:
         #   # Number of iterations / How many random patches to insert
         #   iters: 3
         #   # raw / label
-        #   type: raw
-        
-
+        # #   type: raw
+        # - name: RandomTranslate
+        #   sigma: [0,20]
+        - name: RandomScale
+        - name: RandomContrast
         - name: RandomFlip
         - name: RandomRotate
           angle_spectrum: 180
@@ -161,19 +168,22 @@ loaders:
         - name: ToTensor
           expand_dims: true
       label:
-        - name: AneuInsertion
-          path: data_norm/train
-          padding: 10
-          iters: 3
-          type: label
-          crop: False
+        # - name: AneuInsertion
+        #   path: data/train_half
+        #   padding: 10
+        #   execution_probalility: 0.5
+        #   iters: 3
+        #   type: label
+        #   crop: False
         # - name: Insertion
         #   path: data_norm/train
         #   min_patch_size: [32, 32, 32]
         #   max_patch_size: [128, 128, 128]
         #   iters: 3
-        #   type: label
-
+        # #   type: label
+        # - name: RandomTranslate
+        #   sigma: [0,20]
+        - name: RandomScale
         - name: RandomFlip
         - name: RandomRotate
           angle_spectrum: 180
@@ -185,25 +195,27 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data_norm/val
+      - data/val_half
+    slice_path: "val_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [128, 128, 128]
+      patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [64, 64, 64]
+      stride_shape: [16, 16, 16]
+
+      border: [16, 16, 16]
       # minimum volume of the labels in the patch
-      threshold: 0
+      threshold: 1
       # probability of accepting patches which do not fulfil the threshold criterion
       slack_acceptance: 0.01
 
     # data augmentation
     transformer:
       raw:
-        - name: HardThreshold
-        - name: Standardize
+        #- name: HardThreshold
         - name: ToTensor
           expand_dims: true
       label:
