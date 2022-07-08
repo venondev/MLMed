@@ -40,7 +40,7 @@ trainer:
   resume: null
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
   # make sure to decrease the learning rate in the optimizer config accordingly
-  pre_trained: null
+  pre_trained: model/best_run.pytorch
   # how many iterations between validations
   validate_after_iters: 100
   # how many iterations between tensorboard logging
