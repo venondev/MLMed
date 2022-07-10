@@ -136,8 +136,9 @@ class FilterSliceBuilder(SliceBuilder):
     Filter patches containing more than `1 - threshold` of ignore_index label
     """
 
-    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, border, ignore_index=(0,),
-                 threshold=0.6, slack_acceptance=0.01, raw_threshold = 0.01, **kwargs):
+    def __init__(self, raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, border=0,
+                 ignore_index=(0,),
+                 threshold=0.6, slack_acceptance=0.01, raw_threshold=0.01, **kwargs):
         super().__init__(raw_dataset, label_dataset, weight_dataset, patch_shape, stride_shape, **kwargs)
         if label_dataset is None:
             return
@@ -146,8 +147,6 @@ class FilterSliceBuilder(SliceBuilder):
 
         label_labels, num_labels = ndi.label(label_dataset)
 
-        upper_perc = np.percentile(raw_dataset, 99)
-
         unique_aneus = np.unique(label_labels)
         print("unique_aneus in this set", unique_aneus)
 
@@ -155,7 +154,7 @@ class FilterSliceBuilder(SliceBuilder):
         for i in range(1, num_labels + 1):
             m = label_labels[label_labels == i]
 
-            volume = m.sum()
+            volume = m.sum() / i
 
             t = np.zeros(label_dataset.shape)
             t[label_labels == i] = 1
@@ -168,7 +167,9 @@ class FilterSliceBuilder(SliceBuilder):
             for ii in ignore_index:
                 patch[patch == ii] = 0
 
-            patch_center = patch[border[0]:-border[0], border[1]:-border[1], border[2]:-border[2]]
+            has_aneu = np.count_nonzero(patch != 0) != 0
+
+            patch_center = patch if border == 0 else patch[border:-border, border:-border, border:-border]
             aneu_volume = np.count_nonzero(patch_center != 0)
 
             if aneu_volume != 0:
@@ -180,24 +181,9 @@ class FilterSliceBuilder(SliceBuilder):
                     if sep_aneu == 0:
                         continue
                     total_volume += label_volume[sep_aneu - 1]
+                return (aneu_volume / total_volume) >= threshold
 
-                print("Volume:", aneu_volume, total_volume, aneu_volume / total_volume, label_idx)
-                # if total_volume > 1000:
-                #     return False
-
-                return (aneu_volume / total_volume) >= threshold or rand_state.rand() < slack_acceptance
-
-            # elif np.count_nonzero(patch != 0) == 0:
-            #     raw_patch = raw_dataset[label_idx]
-            #     print(raw_patch.size, raw_patch.shape)
-            #     t2 = (raw_patch > upper_perc).sum() / raw_patch.size
-            #     print("FOO", t2, raw_threshold)
-            #     t = t2 > raw_threshold
-            #     if t:
-            #         print("Including high Background")
-            #     return t or rand_state.rand() < slack_acceptance
-
-            return rand_state.rand() < slack_acceptance
+            return not has_aneu and rand_state.rand() < slack_acceptance
 
         zipped_slices = zip(self.raw_slices, self.label_slices)
         # ignore slices containing too much ignore_index
