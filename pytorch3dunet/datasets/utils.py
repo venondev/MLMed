@@ -174,7 +174,8 @@ class FilterSliceBuilder(SliceBuilder):
 
             if aneu_volume != 0:
                 label_patch = label_labels[label_idx]
-                label_patch_center = label_patch[border[0]:-border[0], border[1]:-border[1], border[2]:-border[2]]
+                label_patch_center = label_patch if border == 0 else label_patch[border:-border, border:-border,
+                                                                     border:-border]
 
                 total_volume = 0
                 for sep_aneu in np.unique(label_patch_center):
