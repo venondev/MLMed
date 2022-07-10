@@ -6,6 +6,7 @@ from pytorch3dunet.unet3d.utils import get_logger
 import torch
 import numpy as np
 import torch.nn as nn
+import os
 
 import h5py
 
@@ -46,13 +47,25 @@ class Tester:
                 batch = batch.to(self.device)
                 predictions = self.final_activation(self.model(batch))
                 for idx, pred in zip(indices, predictions):
-                    result[idx] = pred.squeeze() + result[idx]
-                    dev[idx]+=torch.ones_like(result[idx])
-        result=result/dev
+                    result[idx] += pred.squeeze()
+                    dev[idx] += torch.ones_like(result[idx])
+
+        # Save results to disk
+        test_path_split = test_loader.dataset.file_path.split('/')
+        name = test_path_split[-1].replace(".h5", "")
+        orig_path = "/".join(test_path_split[:-2])
+
+        if not os.path.exists("./test_out"):
+            os.makedirs("./test_out")
+
+        orig_data = nib.load(orig_path + "/" + name + "_masks.nii.gz")
+        nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine), './test_out/' + name + '_pred.nii.gz')
+        nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine), './test_out/' + name + '_dev.nii.gz')
+
+        result /= dev
         result[result >= 0.4] = 1
         result[result < 1] = 0
-        label = h5py.File(test_loader.dataset.file_path, 'r')[test_loader.dataset.label_internal_path][:]
-        eval_score=self.metric(result[np.newaxis,np.newaxis].cpu(),torch.tensor(label[np.newaxis,np.newaxis]))
-        self.val_scores.update(eval_score, 1)
 
-        return
+        label = h5py.File(test_loader.dataset.file_path, 'r')[test_loader.dataset.label_internal_path][:]
+        eval_score = self.metric(result[np.newaxis, np.newaxis].cpu(), torch.tensor(label[np.newaxis,np.newaxis]))
+        self.val_scores.update(eval_score, 1)
