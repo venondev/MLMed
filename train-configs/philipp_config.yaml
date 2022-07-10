@@ -99,8 +99,6 @@ loaders:
   weight_internal_path: null
   # configuration of the train loader
 
-  load_slices: true
-  store_slices: false
 
   train:
     # paths to the training datasets
