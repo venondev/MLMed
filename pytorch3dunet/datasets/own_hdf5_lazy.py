@@ -1,4 +1,6 @@
 import glob
+import hashlib
+import json
 import os
 from itertools import chain
 import pickle
@@ -29,7 +31,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
                  mirror_padding=(16, 32, 32),
                  raw_internal_path='raw',
                  label_internal_path='label',
-                 artery_internal_path='artery',
+                 artery_internal_path=None,
                  weight_internal_path=None,
                  global_normalization=True):
         """
