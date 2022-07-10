@@ -2,7 +2,7 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 run: 
-  name: reduce batchsize 
+  name: attention net test
   notes: first complete run
 # model configuration
 model:
@@ -15,7 +15,7 @@ model:
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcl
+  layer_order: bcl
   # number of features at each level of the U-Net
   f_maps: 32
   # number of groups in the groupnorm
@@ -37,28 +37,28 @@ trainer:
   # path to the checkpoint directory
   checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
-  resume: model/base_model.pytorch #
+  resume: null #checkpoints/best_checkpoint.pytorch
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
   # make sure to decrease the learning rate in the optimizer config accordingly
-  pre_trained: base.pytorch #base.pytorch
+  pre_trained: null #model/best_run.pytorch # null
   # how many iterations between validations
   validate_after_iters: 100
   # how many iterations between tensorboard logging
   log_after_iters: 100
   # vielfaches von validate 
-  store_after_val: 3
+  store_after_val: 1
   # max number of epochs
-  max_num_epochs: 100000000
+  max_num_epochs: 10000000
   # max number of iterations
-  max_num_iterations: 100000000
+  max_num_iterations: 10000000
   # model with higher eval score is considered better
   eval_score_higher_is_better: true
 # loss function configuration
 loss:
   # use BCE loss for training
   name: BCEDiceLoss
-  alphs: 1
-  beta: 1
+  alphs: 0.5
+  beta: 0.5
 
 # optimizer configuration
 optimizer:
@@ -79,7 +79,7 @@ lr_scheduler:
   # factor by which learning rate will be reduced
   factor: 0.5
   # number of *validation runs* with no improvement after which learning rate will be reduced
-  patience: 5
+  patience: 10
 
 # data loaders configuration
 loaders:
@@ -88,37 +88,60 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 4
+  batch_size: 1
   # how many subprocesses to use for data loading
-  num_workers: 4
+  num_workers: 1
   # path to the raw data within the H5
   raw_internal_path: /raw
   # path to the the label data withtin the H5
-  label_internal_path: /label
+  label_internal_path: /overlap_mask
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
   # configuration of the train loader
 
+  load_slices: true
+  store_slices: false
 
   train:
     # paths to the training datasets
     file_paths:
-      - data/train_half
+      - data/full_new_train/h5
     slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    slice_builder:
+    slice_builder1:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 64, 64]
+      patch_shape: [ 32, 32, 32 ]
       # train stride between patches
-      stride_shape: [16, 16, 16]
-
-      border: [16, 16, 16]
+      stride_shape: [ 10, 10, 10 ]
+      border: 0
       # minimum volume of the labels in the patch
       threshold: 1
       # probability of accepting patches which do not fulfil the threshold criterion
-      slack_acceptance: 0.01
+      slack_acceptance: 0.00
+    slice_builder2:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [ 64, 64, 64 ]
+      # train stride between patches
+      stride_shape: [ 20, 20, 20 ]
+      border: 0
+      # minimum volume of the labels in the patch
+      threshold: 1
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.00
+    slice_builder3:
+      name: FilterSliceBuilder
+      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
+      patch_shape: [ 128, 128, 128 ]
+      # train stride between patches
+      stride_shape: [ 40, 40, 40 ]
+      border: 0
+      # minimum volume of the labels in the patch
+      threshold: 1
+      # probability of accepting patches which do not fulfil the threshold criterion
+      slack_acceptance: 0.00
 
     transformer:
       raw:
@@ -134,10 +157,10 @@ loaders:
         #   randomly flips the volume in one of the axis
         # - name: AneuInsertion
         #   # Path to pick examples from
-        #   path: data/train_half
-
+        #   path: data_norm/train
+        #   # Padding around an aneurysm
         #   padding: 10
-        #   execution_probalility: 0.5
+        #   # How many insert iterations / How many aneurysms to insert
         #   iters: 3
         #   # label or raw
         #   type: raw
@@ -154,11 +177,9 @@ loaders:
         #   # Number of iterations / How many random patches to insert
         #   iters: 3
         #   # raw / label
-        # #   type: raw
-        # - name: RandomTranslate
-        #   sigma: [0,20]
-        - name: RandomScale
-        - name: RandomContrast
+        #   type: raw
+        
+
         - name: RandomFlip
         - name: RandomRotate
           angle_spectrum: 180
@@ -167,9 +188,8 @@ loaders:
           expand_dims: true
       label:
         # - name: AneuInsertion
-        #   path: data/train_half
+        #   path: data_norm/train
         #   padding: 10
-        #   execution_probalility: 0.5
         #   iters: 3
         #   type: label
         #   crop: False
@@ -178,10 +198,8 @@ loaders:
         #   min_patch_size: [32, 32, 32]
         #   max_patch_size: [128, 128, 128]
         #   iters: 3
-        # #   type: label
-        # - name: RandomTranslate
-        #   sigma: [0,20]
-        - name: RandomScale
+        #   type: label
+
         - name: RandomFlip
         - name: RandomRotate
           angle_spectrum: 180
@@ -193,22 +211,21 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - data/val_half
+      - data/full_new_val/h5
     slice_path: "val_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [64, 64, 64]
-      # train stride between patches
-      stride_shape: [16, 16, 16]
-
-      border: [16, 16, 16]
+      patch_shape: [ 96, 96, 96 ]
+        # train stride between patches
+      stride_shape: [ 40, 40, 40 ]
+      border: 0
       # minimum volume of the labels in the patch
       threshold: 1
       # probability of accepting patches which do not fulfil the threshold criterion
-      slack_acceptance: 0.01
+      slack_acceptance: 0.00
 
     # data augmentation
     transformer:

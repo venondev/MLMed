@@ -24,3 +24,4 @@ wandb/*
 
 train_slices.pkl
 val_slices.pkl
+/temp/
