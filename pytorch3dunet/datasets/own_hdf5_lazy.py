@@ -66,7 +66,7 @@ class OwnLazyHDF5Dataset(ConfigDataset):
         self.input_file = self.create_h5_file(file_path)
 
         raw = self.fetch_and_check(self.input_file, raw_internal_path)
-
+        self.raw_full_shape = raw.shape
         if global_normalization:
             self.stats = calculate_stats(raw)
         else:
@@ -92,12 +92,12 @@ class OwnLazyHDF5Dataset(ConfigDataset):
                 self.has_weight_map=False
 
             self._check_volume_sizes(raw, label)
-        #TODO add mirror padding in test phase
-        # else:
-        #     # 'test' phase used only for predictions so ignore the label dataset
-        #     label = None
-        #     weight_map = None
 
+        else:
+            # 'test' phase used only for predictions so ignore the label dataset
+            label = None
+            weight_map = None
+        # TODO add mirror padding in test phase
         #     # add mirror padding if needed
         #     if self.mirror_padding is not None:
         #         z, y, x = self.mirror_padding
