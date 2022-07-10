@@ -72,7 +72,8 @@ class OwnLazyHDF5Dataset(ConfigDataset):
 
         self.transformer = transforms.Transformer(transformer_config, self.stats)
         self.raw_transform = self.transformer.raw_transform()
-        self.artery_transform = self.transformer.artery_transform()
+        if self.artery_internal_path:
+            self.artery_transform = self.transformer.artery_transform()
 
         if phase != 'test':
             # create label/weight transform only in train/val phase
@@ -135,16 +136,21 @@ class OwnLazyHDF5Dataset(ConfigDataset):
             # discard the channel dimension in the slices: predictor requires only the spatial dimensions of the volume
             if len(raw_idx) == 4:
                 raw_idx = raw_idx[1:]
-            artery_patch_transformed = self.artery_transform(self.input_file[self.artery_internal_path][raw_idx])
-            raw_patch_transformed = self.raw_transform(self.input_file[self.raw_internal_path][raw_idx], artery=artery_patch_transformed)
+            artery_patch_transformed = self.artery_transform(
+                self.input_file[self.artery_internal_path][raw_idx]) if self.artery_internal_path else None
+            raw_patch_transformed = self.raw_transform(self.input_file[self.raw_internal_path][raw_idx],
+                                                       artery=artery_patch_transformed)
 
             return raw_patch_transformed, raw_idx
         else:
             # get the slice for a given index 'idx'
             label_idx = self.label_slices[idx]
-            artery_patch_transformed = self.artery_transform(self.input_file[self.artery_internal_path][raw_idx])
+            artery_patch_transformed = self.artery_transform(
+                self.input_file[self.artery_internal_path][raw_idx]) if self.artery_internal_path else None
+
             label_patch_transformed = self.label_transform(self.input_file[self.label_internal_path][label_idx])
-            raw_patch_transformed = self.raw_transform(self.input_file[self.raw_internal_path][raw_idx], label=label_patch_transformed, artery=artery_patch_transformed)
+            raw_patch_transformed = self.raw_transform(self.input_file[self.raw_internal_path][raw_idx],
+                                                       label=label_patch_transformed, artery=artery_patch_transformed)
             if self.has_weight_map:
                 weight_idx = self.weight_slices[idx]
                 weight_patch_transformed = self.weight_transform(self.input_file[self.weight_internal_path][weight_idx])
