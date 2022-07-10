@@ -313,6 +313,7 @@ class UNet3DTrainer:
         val_scores = utils.EvalScoreTracker()
 
         img_idx = int(len(self.loaders['val']) / self.num_of_img_per_val)
+        img_idx = img_idx if img_idx > 0 else 1
         num_logged_img = 0
         with torch.no_grad():
             for i, t in enumerate(self.loaders['val']):
