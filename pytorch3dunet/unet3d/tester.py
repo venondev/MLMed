@@ -40,6 +40,7 @@ class Tester:
         dev = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         self.model.eval()
         # Run predictions on the entire input dataset
+
         with torch.no_grad():
             k = 0
             start = time.time()
@@ -49,8 +50,15 @@ class Tester:
 
                 batch = batch.to(self.device)
                 predictions = self.final_activation(self.model(batch))
+                center_size = predictions.squeeze().size() / 2
+                padding = center_size / 2
+                weight = torch.nn.functional.pad(torch.ones(center_size), (
+                    padding[0], padding[0], padding[1], padding[1], padding[2], padding[2]), 'constant', value=0).to(
+                    self.device)
+                print("center_size",center_size)
+                print("padding", padding)
                 for idx, pred in zip(indices, predictions):
-                    result[idx] += pred.squeeze()
+                    result[idx] += pred.squeeze() * weight
                     dev[idx] += torch.ones_like(result[idx])
             time_dif = time.time() - start
 
