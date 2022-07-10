@@ -1,3 +1,5 @@
+import time
+
 from tqdm import tqdm
 
 from pytorch3dunet.unet3d import utils
@@ -40,7 +42,8 @@ class Tester:
         # Run predictions on the entire input dataset
         with torch.no_grad():
             k = 0
-            for batch, indices in tqdm(test_loader,ncols=70,unit="Slices"):
+            start = time.time()
+            for batch, indices in tqdm(test_loader, ncols=70, unit="Slices"):
                 # position of slice
                 k += 1
 
@@ -49,6 +52,7 @@ class Tester:
                 for idx, pred in zip(indices, predictions):
                     result[idx] += pred.squeeze()
                     dev[idx] += torch.ones_like(result[idx])
+            time_dif = time.time() - start
 
         # Save results to disk
         test_path_split = test_loader.dataset.file_path.split('/')
@@ -59,13 +63,16 @@ class Tester:
             os.makedirs("./test_out")
 
         orig_data = nib.load(orig_path + "/" + name + "_masks.nii.gz")
-        nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine), './test_out/' + name + '_pred.nii.gz')
-        nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine), './test_out/' + name + '_dev.nii.gz')
+        nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine, header=orig_data.header),
+                 './test_out/' + name + '_pred.nii.gz')
+        nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine, header=orig_data.header),
+                 './test_out/' + name + '_dev.nii.gz')
 
         result /= dev
         result[result >= 0.4] = 1
         result[result < 1] = 0
 
         label = h5py.File(test_loader.dataset.file_path, 'r')[test_loader.dataset.label_internal_path][:]
-        eval_score = self.metric(result[np.newaxis, np.newaxis].cpu(), torch.tensor(label[np.newaxis,np.newaxis]))
+        eval_score = self.metric(result[np.newaxis, np.newaxis].cpu(), torch.tensor(label[np.newaxis, np.newaxis]))
         self.val_scores.update(eval_score, 1)
+        return (time_dif, name)

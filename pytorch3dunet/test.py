@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 
 import torch
@@ -16,7 +17,7 @@ logger = utils.get_logger('UNet3DTest')
 
 def main():
     # Load configuration
-    config,_,is_test = load_config()
+    config, _, is_test = load_config()
 
     # Create the model
 
@@ -40,16 +41,19 @@ def main():
     test_loaders = get_test_loaders(config)
     files = os.listdir(config["loaders"]["test"]["file_paths"][0])
     files = list(filter(lambda x: x.endswith(".h5"), files))
-    num_of_files=len(files)
-    for t,test_loader in enumerate(test_loaders):
+    num_of_files = len(files)
+    ptimes = []
+    for t, test_loader in enumerate(test_loaders):
         # run the model prediction on the test_loader and save the results in the output_dir
         logger.info(f"[{t}/{num_of_files}]")
-        tester(test_loader)
+        p_time, name = tester(test_loader)
+        ptimes.append({"id": name, "processing_time_in_seconds": p_time})
 
     eval_score, eval_score_detailed = tester.val_scores.avg
     if hasattr(tester.metric, "compute_final"):
         eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
     print(eval_score, eval_score_detailed)
-
+    with open("./test_out/p_time.json", "w") as outfile:
+        json.dump(ptimes, outfile, indent=4)
 if __name__ == '__main__':
     main()
