@@ -182,48 +182,68 @@ class OwnLazyHDF5Dataset(ConfigDataset):
     @classmethod
     def create_datasets(cls, dataset_config, phase,test_run=False):
         phase_config = dataset_config[phase]
+        new_hash = hashlib.sha256(str(phase_config).encode('utf-8')).hexdigest()
 
         # load data augmentation configuration
         transformer_config = phase_config['transformer']
         # load slice builder config
         slice_builder_config = phase_config['slice_builder']
         # load files to process
-        file_paths = phase_config['file_paths']
+
         # file_paths may contain both files and directories; if the file_path is a directory all H5 files inside
         # are going to be included in the final file_paths
-        file_paths = cls.traverse_h5_paths(file_paths)
-        if test_run:
-            file_paths=file_paths[:1]
-        slice_file_path=phase_config.get("slice_path",f'{phase}_slices.pkl')
-        if dataset_config.get("load_slices",False):
+        slice_file_path = phase_config.get("slice_path", f'{phase}_slices.pkl')
+        try:
             with open(slice_file_path, 'rb') as inp:
-                datasets = pickle.load(inp)
-            logger.info(f'{len(datasets)} {phase} slices from: {slice_file_path} were loaded ...')
+                old_dict = pickle.load(inp)
+                datasets = old_dict["data"]
+                old_hash = old_dict["hash"]
+                if old_dict["test_run"] != test_run:
+                    old_hash = -1
+
+        except FileNotFoundError:
+            old_hash = -1
+        except TypeError:
+            old_hash = -1
+        except EOFError:
+            old_hash = -1
+        except KeyError:
+            old_hash = -1
+
+        if old_hash != new_hash:
+            logger.info(f'config changed')
+
+            file_paths = phase_config['file_paths']
+            file_paths = cls.traverse_h5_paths(file_paths)
             if test_run:
-                datasets=datasets[:1]
-        else:
+                file_paths = file_paths[:1]
             datasets = []
             for file_path in file_paths:
                 try:
                     logger.info(f'Loading {phase} set from: {file_path}...')
                     dataset = cls(file_path=file_path,
-                                phase=phase,
-                                slice_builder_config=slice_builder_config,
-                                transformer_config=transformer_config,
-                                mirror_padding=dataset_config.get('mirror_padding', None),
-                                raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
-                                label_internal_path=dataset_config.get('label_internal_path', 'label'),
-                                weight_internal_path=dataset_config.get('weight_internal_path', None),
-                                global_normalization=dataset_config.get('global_normalization', True))
+                                  phase=phase,
+                                  slice_builder_config=slice_builder_config,
+                                  transformer_config=transformer_config,
+                                  mirror_padding=dataset_config.get('mirror_padding', None),
+                                  raw_internal_path=dataset_config.get('raw_internal_path', 'raw'),
+                                  label_internal_path=dataset_config.get('label_internal_path', 'label'),
+                                  weight_internal_path=dataset_config.get('weight_internal_path', None),
+                                  global_normalization=dataset_config.get('global_normalization', True))
                     datasets.append(dataset)
                 except Exception:
                     logger.error(f'Skipping {phase} set: {file_path}', exc_info=True)
-            if dataset_config.get("store_slices",False):
-                with open(slice_file_path, 'wb') as outp:
-                    pickle.dump(datasets, outp, pickle.HIGHEST_PROTOCOL)
+            with open(slice_file_path, 'wb') as outp:
+                pickle.dump({"data": datasets, "hash": new_hash, "test_run": test_run}, outp,
+                            pickle.HIGHEST_PROTOCOL)
                 logger.info(f'{len(datasets)} {phase} slices saved in {slice_file_path}')
+        else:
+            logger.info(f'{len(datasets)} {phase} slices from: {slice_file_path} were loaded ...')
+            if test_run:
+                datasets = datasets[:1]
+
         for dataset in datasets:
-                dataset.load_file()
+            dataset.load_file()
         return datasets
 
     @staticmethod
