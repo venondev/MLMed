@@ -17,6 +17,33 @@ import nibabel as nib
 
 logger = get_logger('UNetTester')
 
+class PrecomputedTester():
+    def __init__(self, precomputed_path=None):
+        self.metric = MedMl()
+        self.val_scores = utils.EvalScoreTracker()
+        self.precomputed_path = precomputed_path
+
+    def evaluate(self):
+        # Save results to disk
+
+        print(self.precomputed_path)
+        files = os.listdir(self.precomputed_path)
+        files = list(filter(lambda x: x.endswith(".nii.gz"), files))
+        files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
+        files = list(set(files))
+
+        orig_path = "/".join(self.precomputed_path.split("/")[:-1])
+
+        for file in files:
+            label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
+            label = label[:256, :256, :220]
+            sum_ = nib.load(os.path.join(self.precomputed_path, file + "_sum_rescaled.nii.gz")).get_fdata()
+
+            pred = sum_ > 1.5
+
+            eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
+            self.val_scores.update(eval_score, 1)
+
 
 class Tester:
     def __init__(self, model, device, **kwargs):
