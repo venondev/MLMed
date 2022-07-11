@@ -62,7 +62,7 @@ class PrecomputedTester():
             sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
             dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()
 
-            pred = sum_/dev_
+            pred = (sum_/dev_)>0.4
 
             eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
             self.val_scores.update(eval_score, 1)
