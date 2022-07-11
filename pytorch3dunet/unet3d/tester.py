@@ -1,6 +1,7 @@
 import time
 
 from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from pytorch3dunet.unet3d import utils
 from pytorch3dunet.unet3d.metrics import MedMl
@@ -53,15 +54,15 @@ class PrecomputedTester():
         files = list(set(files))
 
         orig_path = "/group/emu/data_norm/full_new_val"
-
-        for file in tqdm(files):
-            label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
-            #label = label[:256, :256, :220]
-            sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
-            dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()+0.1e-10
-            pred = (sum_/dev_)>0.5
-            eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
-            self.val_scores.update(eval_score, 1)
+        with logging_redirect_tqdm():
+            for file in tqdm(files):
+                label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
+                #label = label[:256, :256, :220]
+                sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
+                dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()+0.1e-10
+                pred = (sum_/dev_)>0.5
+                eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
+                self.val_scores.update(eval_score, 1)
 
 
 
