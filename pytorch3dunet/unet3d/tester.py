@@ -50,7 +50,7 @@ class PrecomputedTester():
         files = os.listdir(self.precomputed_path)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
         print(files)
-        files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
+        files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
         print(files)
         files = list(set(files))
 
