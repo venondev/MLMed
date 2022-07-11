@@ -53,7 +53,7 @@ def calc_single_aneus_pred(pred, threshold=60):
     for aneu_idx in range(1, num_single_aneus_pred + 1):
         cur = pred_labeled == aneu_idx
         if cur.sum() <= threshold:
-            print("Filtered out")
+            logger.info(f"Filtered out")
             pred_labeled[cur] = 0
         else:
             keep.append(aneu_idx)
