@@ -54,13 +54,12 @@ class PrecomputedTester():
 
         orig_path = "/group/emu/data_norm/full_new_val"
 
-        for file in files:
+        for file in tqdm(files):
             label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
             #label = label[:256, :256, :220]
             sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
             dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()+0.1e-10
             pred = (sum_/dev_)>0.4
-            print(file,pred.shape,label.shape)
             eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
             self.val_scores.update(eval_score, 1)
 
