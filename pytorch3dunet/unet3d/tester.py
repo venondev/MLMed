@@ -43,6 +43,28 @@ class PrecomputedTester():
 
             eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
             self.val_scores.update(eval_score, 1)
+    def evaluate2(self):
+        # Save results to disk
+
+        print(self.precomputed_path)
+        files = os.listdir(self.precomputed_path)
+        files = list(filter(lambda x: x.endswith(".nii.gz"), files))
+        files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
+        files = list(set(files))
+
+        orig_path = "/group/emu/data_norm/full_new_val"
+
+        for file in files:
+            label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
+            label = label[:256, :256, :220]
+            sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
+            dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()
+
+            pred = sum_/dev_
+
+            eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
+            self.val_scores.update(eval_score, 1)
+
 
 
 class Tester:

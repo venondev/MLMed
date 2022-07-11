@@ -23,7 +23,7 @@ def main():
     if config.get("precomputed_predictions", None) is not None:
         print("Using precomputed predictions")
         tester = PrecomputedTester(config["loaders"]["test"]["file_paths"][0])
-        tester.evaluate()
+        tester.evaluate2()
 
         # TODO: Schauen wie wir das mit der Time machen
     else:
