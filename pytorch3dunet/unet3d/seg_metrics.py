@@ -19,7 +19,7 @@ def f1(tp, fp, fn):
 
 
 def f2(precision, recall):
-    return (1 + 2 ** 2) * precision * recall / ((2 ** 2 * precision) + recall)
+    return (1 + 2 ** 2) * precision * recall / ((2 ** 2 * precision) + recall) if precision > 0 else 0
 
 
 def _relabel(input):

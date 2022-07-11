@@ -77,16 +77,14 @@ class Tester:
 
                 batch = batch.to(self.device)
                 predictions = self.final_activation(self.model(batch))
-                center_size = predictions.squeeze().size() / 2
-                padding = center_size / 2
-                weight = torch.nn.functional.pad(torch.ones(center_size), (
+                center_size = torch.tensor(predictions[0].squeeze().size()) / 2
+                padding = (center_size / 2).int().tolist()
+                weight = torch.nn.functional.pad(torch.ones((center_size).int().tolist()), (
                     padding[0], padding[0], padding[1], padding[1], padding[2], padding[2]), 'constant', value=0).to(
                     self.device)
-                print("center_size",center_size)
-                print("padding", padding)
                 for idx, pred in zip(indices, predictions):
                     result[idx] += pred.squeeze() * weight
-                    dev[idx] += torch.ones_like(result[idx])
+                    dev[idx] += torch.ones_like(result[idx])* weight
             time_dif = time.time() - start
 
         # Save results to disk
@@ -102,6 +100,8 @@ class Tester:
                  './test_out/' + name + '_pred.nii.gz')
         nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine, header=orig_data.header),
                  './test_out/' + name + '_dev.nii.gz')
+
+
 
         result /= dev
         result[result >= 0.4] = 1

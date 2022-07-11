@@ -64,7 +64,7 @@ def calc_single_aneus_pred(pred, threshold=60):
     return pred_labeled, len(keep)
 
 
-def compute_detection_metrics(label, pred):
+def compute_detection_metrics(pred, label):
     label = label.numpy()
     pred = pred.numpy()
 
