@@ -18,6 +18,10 @@ def f1(tp, fp, fn):
     return (2 * tp) / (2 * tp + fp + fn) if tp > 0 else 0
 
 
+def f2(precision, recall):
+    return (1 + 2 ** 2) * precision * recall / ((2 ** 2 * precision) + recall)
+
+
 def _relabel(input):
     _, unique_labels = np.unique(input, return_inverse=True)
     return unique_labels.reshape(input.shape)

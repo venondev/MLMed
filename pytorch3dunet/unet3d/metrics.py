@@ -3,12 +3,14 @@ from matplotlib.pyplot import axis
 
 import numpy as np
 from skimage import measure
+import scipy.ndimage as ndi
 from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio, mean_squared_error
 import torch
 from monai.metrics import compute_hausdorff_distance, compute_average_surface_distance
 
+
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
-from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy
+from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy, precision, recall, f2
 from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, convert_to_numpy
 
 logger = get_logger('EvalMetric')
@@ -42,6 +44,79 @@ def compute_volume_std_dev(volume_gt, volume_pred):
 def compute_volume_pearson(volume_gt, volume_pred):
     return max(0, (np.corrcoef(volume_gt, volume_pred)[0, 1]))
 
+
+# Filters out predictions with a volume less than the given threshold
+def calc_single_aneus_pred(pred, threshold=60):
+    pred_labeled, num_single_aneus_pred = ndi.label(pred)
+
+    keep = []
+    for aneu_idx in range(1, num_single_aneus_pred + 1):
+        cur = pred_labeled == aneu_idx
+        if cur.sum() <= threshold:
+            print("Filtered out")
+            pred_labeled[cur] = 0
+        else:
+            keep.append(aneu_idx)
+
+    for idx, aneu_idx in enumerate(keep):
+        pred_labeled[pred_labeled == aneu_idx] = idx + 1
+
+    return pred_labeled, len(keep)
+
+
+def compute_detection_metrics(label, pred):
+    label = label.numpy()
+    pred = pred.numpy()
+
+    aneus_labeled, num_single_aneus = ndi.label(label)
+
+    fp = 0
+    tp = 0
+    fn = 0
+
+    for aneu_idx in range(1, num_single_aneus + 1):
+        cur = aneus_labeled == aneu_idx
+
+        detected = np.logical_and(cur, pred).sum() > 0
+        if detected:
+            tp += 1
+        else:
+            fn += 1
+
+    pred_labeled, num_single_aneus_pred = calc_single_aneus_pred(pred)
+    for aneu_idx in range(1, num_single_aneus_pred + 1):
+        cur = pred_labeled == aneu_idx
+
+        detected = np.logical_and(cur, label).sum() > 0
+        if not detected:
+            fp += 1
+
+    # Per Aneu Jaccard Score
+    jaccard_scores = []
+    for aneu_idx in range(1, num_single_aneus + 1):
+        cur = aneus_labeled == aneu_idx
+
+        pred_unique = np.unique(pred_labeled[cur])
+
+        if len(pred_unique) == 1:
+            # Only Background got selected
+            jaccard_scores.append(0)
+        else:
+            pred_ = None
+            for i in range(1, len(pred_unique)):
+                if pred_ is None:
+                    pred_ = pred_labeled == pred_unique[i]
+                else:
+                    pred_ = np.logical_or(pred_, pred_labeled == pred_unique[i])
+
+            jaccard = np.logical_and(cur, pred_).sum() / np.logical_or(cur, pred_).sum()
+            jaccard_scores.append(jaccard)
+
+    jaccard_scores = torch.tensor(jaccard_scores).float()
+
+    return tp, fp, fn, jaccard_scores
+
+
 class MedMl:
 
     def __init__(self, skip_channels=(), ignore_index=None, **kwargs):
@@ -51,10 +126,14 @@ class MedMl:
         assert input.dim() == 5
         assert input.size() == target.size()
 
+        tp, fp, fn, jaccard_scores_per_aneu = compute_detection_metrics(input, target)
+
         input_bin = (input > 0.5).long()
 
-        hausdorff_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]), compute_hausdorff_distance(input_bin, target))
-        avg_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]), compute_average_surface_distance(input_bin, target))
+        hausdorff_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]),
+                                            compute_hausdorff_distance(input_bin, target))
+        avg_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]),
+                                      compute_average_surface_distance(input_bin, target))
         jaccard_score = self.compute_jaccard(input, target)
         overlap = (torch.logical_and(input_bin, target).sum(dim=(1, 2, 3, 4)) >= 1).float()
 
@@ -65,7 +144,8 @@ class MedMl:
             "hausdorff": hausdorff_score,
             "avg_dist": avg_score,
             "jaccard": jaccard_score,
-            "overlap": overlap
+            "overlap": overlap,
+            "jaccard_per_aneu": jaccard_scores_per_aneu,
         }
 
         # Values for final calculation
@@ -75,7 +155,7 @@ class MedMl:
             volume_gt.append(_target.sum().item())
             volume_pred.append(_input.sum().item())
 
-        return detailed_score, (volume_gt, volume_pred)
+        return detailed_score, (volume_gt, volume_pred, tp, fp, fn)
 
     def compute_final(self, eval_tracker):
         volume_gt = np.concatenate([x[0] for x in eval_tracker.cache])
@@ -84,6 +164,14 @@ class MedMl:
         eval_tracker.scores["bias"] = compute_volume_bias(volume_gt, volume_pred)
         eval_tracker.scores["std"] = compute_volume_std_dev(volume_gt, volume_pred)
         eval_tracker.scores["pearson"] = compute_volume_pearson(volume_gt, volume_pred)
+
+        eval_tracker.scores["tp"] = np.sum([x[2] for x in eval_tracker.cache])
+        eval_tracker.scores["fp"] = np.sum([x[3] for x in eval_tracker.cache])
+        eval_tracker.scores["fn"] = np.sum([x[4] for x in eval_tracker.cache])
+
+        eval_tracker.scores["precision"] = precision(eval_tracker.scores["tp"], eval_tracker.scores["fp"], eval_tracker.scores["fn"])
+        eval_tracker.scores["recall"] = recall(eval_tracker.scores["tp"], eval_tracker.scores["fp"], eval_tracker.scores["fn"])
+        eval_tracker.scores["f2"] = f2(eval_tracker.scores["precision"], eval_tracker.scores["recall"])
 
         _, detailed = eval_tracker.avg
         total = (detailed["bias"] + detailed["std"] + detailed["pearson"] + detailed["hausdorff"]
