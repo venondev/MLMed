@@ -56,7 +56,7 @@ class PrecomputedTester():
 
         for file in files:
             label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
-            label = label[:256, :256, :220]
+            #label = label[:256, :256, :220]
             sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
             dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()+0.1e-10
             pred = (sum_/dev_)>0.4
