@@ -49,7 +49,9 @@ class PrecomputedTester():
         print(self.precomputed_path)
         files = os.listdir(self.precomputed_path)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
+        print(files)
         files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
+        print(files)
         files = list(set(files))
 
         orig_path = "/group/emu/data_norm/full_new_val"
