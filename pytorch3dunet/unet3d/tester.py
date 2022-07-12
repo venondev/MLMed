@@ -24,7 +24,7 @@ class PrecomputedTester():
         self.metric = MedMl()
         self.val_scores = utils.EvalScoreTracker()
         self.precomputed_path_hjamlar = precomputed_path_hjamlar
-        self.precomputed_path_philipp = precomputed_path_philipp,
+        self.precomputed_path_philipp = precomputed_path_philipp
         self.original_path = original_path
 
     def load_hjalmar(self, file):
