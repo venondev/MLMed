@@ -18,7 +18,9 @@ import nibabel as nib
 
 logger = get_logger('UNetTester')
 
-test=True
+test = True
+
+
 class PrecomputedTester():
 
     def __init__(self, precomputed_path_hjamlar, precomputed_path_philipp, original_path):
@@ -37,7 +39,7 @@ class PrecomputedTester():
     def load_label(self, file):
         label_nifti = nib.load(os.path.join(self.original_path, file + "_orig.nii.gz"))
 
-        return label_nifti,label_nifti.get_fdata()
+        return label_nifti, label_nifti.get_fdata()
 
     def load_philipp(self, file):
         if self.precomputed_path_philipp is None:
@@ -62,9 +64,8 @@ class PrecomputedTester():
             div = 0
             hjalmar_pred = self.load_hjalmar(file)
             philipp_pred = self.load_philipp(file)
-            sum = np.zeros_like(label,dtype='float64')
+            sum = np.zeros_like(label, dtype='float64')
             label = label
-
 
             if self.precomputed_path_philipp is not None:
                 sum += philipp_pred
@@ -73,7 +74,10 @@ class PrecomputedTester():
                 sum += hjalmar_pred
                 div += 1
 
-            pred = (sum/div) > 0.5
+            pred = (sum / div) > 0.5
+            pred = self.calc_single_aneus_pred(pred)
+            pred[pred > 0] = 1
+
             nib.save(nib.Nifti1Image(pred, label_nifti.affine, header=label_nifti.header),
                      './final_test/' + file + '_pred.nii.gz')
 
@@ -82,7 +86,22 @@ class PrecomputedTester():
                                          torch.tensor(label[np.newaxis, np.newaxis]))
                 self.val_scores.update(eval_score, 1)
 
+    def calc_single_aneus_pred(self, pred, threshold=60):
+        pred_labeled, num_single_aneus_pred = ndi.label(pred)
 
+        keep = []
+        for aneu_idx in range(1, num_single_aneus_pred + 1):
+            cur = pred_labeled == aneu_idx
+            if cur.sum() <= threshold:
+                logger.info(f"Filtered out")
+                pred_labeled[cur] = 0
+            else:
+                keep.append(aneu_idx)
+
+        for idx, aneu_idx in enumerate(keep):
+            pred_labeled[pred_labeled == aneu_idx] = idx + 1
+
+        return pred_labeled, len(keep)
 
     def evaluate2(self):
         # Save results to disk
@@ -127,7 +146,7 @@ class Tester:
         result = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         dev = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         self.model.eval()
-        test=True
+        test = True
         # Run predictions on the entire input dataset
 
         with torch.no_grad():
@@ -156,7 +175,6 @@ class Tester:
 
         if not os.path.exists("./test_out_test"):
             os.makedirs("./test_out_test")
-
 
         orig_data = nib.load(orig_path + "/" + name + "_orig.nii.gz")
         nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine, header=orig_data.header),
