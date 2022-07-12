@@ -35,8 +35,9 @@ class PrecomputedTester():
         return np.clip(sum_ / 3, 0, 1)
 
     def load_label(self, file):
-        label = nib.load(os.path.join(self.original_path, file + "_masks.nii.gz")).get_fdata()
-        return label
+        label_nifti = nib.load(os.path.join(self.original_path, file + "_masks.nii.gz"))
+
+        return label_nifti,label_nifti.get_fdata()
 
     def load_philipp(self, file):
         if self.precomputed_path_philipp is None:
@@ -52,30 +53,36 @@ class PrecomputedTester():
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
         files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
         files = list(set(files))
+        if not os.path.exists("./final_test"):
+            os.makedirs("./final_test")
 
         for file in tqdm(files):
-            label = self.load_label(file)
+            label_nifti, label = self.load_label(file)
 
             div = 0
             hjalmar_pred = self.load_hjalmar(file)
             philipp_pred = self.load_philipp(file)
-            min_shape=np.minimum(np.minimum(hjalmar_pred.shape,philipp_pred.shape),label.shape)
-            sum = np.zeros(min_shape,dtype='float64')
-            label = label[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
+            sum = np.zeros_like(label,dtype='float64')
+            label = label
 
 
             if self.precomputed_path_philipp is not None:
-                sum += philipp_pred[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
+                sum += philipp_pred
                 div += 1
             if self.precomputed_path_hjamlar is not None:
-                sum += hjalmar_pred[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
+                sum += hjalmar_pred
                 div += 1
 
             pred = (sum/div) > 0.5
+            nib.save(nib.Nifti1Image(pred, label_nifti.affine, header=label_nifti.header),
+                     './final_test/' + files + '_pred.nii.gz')
+
             if not test:
                 eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
                                          torch.tensor(label[np.newaxis, np.newaxis]))
                 self.val_scores.update(eval_score, 1)
+
+
 
     def evaluate2(self):
         # Save results to disk
