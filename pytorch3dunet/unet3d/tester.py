@@ -44,7 +44,7 @@ class PrecomputedTester():
     def load_philipp(self, file):
         if self.precomputed_path_philipp is None:
             return None
-        sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fmdata()
+        sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fdata()
         dev_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
         return (sum_ / dev_)
 
