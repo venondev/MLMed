@@ -144,20 +144,22 @@ class Tester:
         name = test_path_split[-1].replace(".h5", "")
         orig_path = "/".join(test_path_split[:-2])
 
-        if not os.path.exists("./test_out_train"):
-            os.makedirs("./test_out_train")
+        if not os.path.exists("./test_out_test"):
+            os.makedirs("./test_out_test")
 
-        orig_data = nib.load(orig_path + "/" + name + "_masks.nii.gz")
+
+        orig_data = nib.load(orig_path + "/" + name + "_orig.nii.gz")
         nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine, header=orig_data.header),
-                 './test_out_train/' + name + '_pred.nii.gz')
+                 './test_out_test/' + name + '_pred.nii.gz')
         nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine, header=orig_data.header),
-                 './test_out_train/' + name + '_dev.nii.gz')
+                 './test_out_test/' + name + '_dev.nii.gz')
 
-        result /= dev
-        result[result >= 0.5] = 1
-        result[result < 1] = 0
+        if not test:
+            result /= dev
+            result[result >= 0.5] = 1
+            result[result < 1] = 0
 
-        label = h5py.File(test_loader.dataset.file_path, 'r')[test_loader.dataset.label_internal_path][:]
-        eval_score = self.metric(result[np.newaxis, np.newaxis].cpu(), torch.tensor(label[np.newaxis, np.newaxis]))
-        self.val_scores.update(eval_score, 1)
+            label = h5py.File(test_loader.dataset.file_path, 'r')[test_loader.dataset.label_internal_path][:]
+            eval_score = self.metric(result[np.newaxis, np.newaxis].cpu(), torch.tensor(label[np.newaxis, np.newaxis]))
+            self.val_scores.update(eval_score, 1)
         return (time_dif, name)
