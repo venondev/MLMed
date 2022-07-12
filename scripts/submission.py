@@ -83,7 +83,7 @@ for name in tqdm(names):
     # prediction -> binary prediction
     prediction_idx = np.where(binary_prediction > 0.5)
     labeled_prediction, _ = ndi.label(binary_prediction)
-    print(labeled_prediction.isnan().any())
+    print(np.isnan(labeled_prediction).any())
 
     # store task2 output
 
