@@ -20,7 +20,7 @@ def main():
     config, _, is_test = load_config()
 
 
-    if config.get("precomputed_predictions", None) is not None:
+    if config.get("precomputed_predictions", False):
         print("Using precomputed predictions")
         tester = PrecomputedTester(config["loaders"]["test"]["file_paths"][0])
         tester.evaluate2()
