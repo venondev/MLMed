@@ -18,32 +18,55 @@ import nibabel as nib
 
 logger = get_logger('UNetTester')
 
+
 class PrecomputedTester():
-    def __init__(self, precomputed_path=None):
+    def __init__(self, precomputed_path_hjamlar, precomputed_path_philipp, original_path):
         self.metric = MedMl()
         self.val_scores = utils.EvalScoreTracker()
-        self.precomputed_path = precomputed_path
+        self.precomputed_path_hjamlar = precomputed_path_hjamlar
+        self.precomputed_path_philipp = precomputed_path_philipp,
+        self.original_path = original_path
+
+    def load_hjalmar(self, file):
+
+        sum_ = nib.load(os.path.join(self.precomputed_path_hjamlar, file + "_sum_rescaled.nii.gz")).get_fdata()
+        return np.clip(sum_ / 3, 0, 1)[:256, :256, :220]
+
+    def load_label(self, file):
+        label = nib.load(os.path.join(self.original_path, file + "_masks.nii.gz")).get_fdata()
+        return label[:256, :256, :220]
+
+    def load_philipp(self, file):
+        sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fdata()
+        dev_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
+        return (sum_ / dev_)[:256, :256, :220]
 
     def evaluate(self):
-        # Save results to disk
-
-        print(self.precomputed_path)
-        files = os.listdir(self.precomputed_path)
+        logger.info(
+            f"precomputed_path_hjamlar: {self.precomputed_path_hjamlar}, precomputed_path_philipp: {self.precomputed_path_philipp}, original_path: {self.original_path} ")
+        files = os.listdir(self.precomputed_path_philipp)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
         files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
         files = list(set(files))
 
-        orig_path = "/".join(self.precomputed_path.split("/")[:-1])
-
         for file in files:
-            label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
-            label = label[:256, :256, :220]
-            sum_ = nib.load(os.path.join(self.precomputed_path, file + "_sum_rescaled.nii.gz")).get_fdata()
+            label = self.load_label(file)
+            sum = np.zeros_like(label)
+            div = 0
+            if self.precomputed_path_philipp is not None:
+                philipp_pred = self.load_philipp(file)
+                sum += philipp_pred
+                div += 1
+            if self.precomputed_path_hjamlar is not None:
+                hjalmar_pred = self.load_hjalmar(file)
+                sum += hjalmar_pred
+                div += 1
 
-            pred = sum_ > 1.5
-
-            eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
+            pred = (sum/div) > 0.5
+            eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
+                                     torch.tensor(label[np.newaxis, np.newaxis]))
             self.val_scores.update(eval_score, 1)
+
     def evaluate2(self):
         # Save results to disk
 
@@ -57,13 +80,13 @@ class PrecomputedTester():
         with logging_redirect_tqdm():
             for file in tqdm(files):
                 label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
-                #label = label[:256, :256, :220]
+                # label = label[:256, :256, :220]
                 sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
-                dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata()+0.1e-10
-                pred = (sum_/dev_)>0.5
-                eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
+                dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
+                pred = (sum_ / dev_) > 0.5
+                eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
+                                         torch.tensor(label[np.newaxis, np.newaxis]))
                 self.val_scores.update(eval_score, 1)
-
 
 
 class Tester:
@@ -105,7 +128,7 @@ class Tester:
                     self.device)
                 for idx, pred in zip(indices, predictions):
                     result[idx] += pred.squeeze() * weight
-                    dev[idx] += torch.ones_like(result[idx])* weight
+                    dev[idx] += torch.ones_like(result[idx]) * weight
             time_dif = time.time() - start
 
         # Save results to disk
@@ -121,8 +144,6 @@ class Tester:
                  './test_out_train/' + name + '_pred.nii.gz')
         nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine, header=orig_data.header),
                  './test_out_train/' + name + '_dev.nii.gz')
-
-
 
         result /= dev
         result[result >= 0.5] = 1
