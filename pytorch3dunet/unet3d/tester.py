@@ -75,7 +75,7 @@ class PrecomputedTester():
 
             pred = (sum/div) > 0.5
             nib.save(nib.Nifti1Image(pred, label_nifti.affine, header=label_nifti.header),
-                     './final_test/' + files + '_pred.nii.gz')
+                     './final_test/' + file + '_pred.nii.gz')
 
             if not test:
                 eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
