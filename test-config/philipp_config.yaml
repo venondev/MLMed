@@ -49,7 +49,7 @@ loaders:
   test:
     # paths to the val datasets
     file_paths:
-      - "/group/emu/data_norm/full_new_val/"
+      - "/group/emu/data_norm/full_new_val/h5"
     #"./test_out/"
     slice_path: "test_datasets.pkl"
 
