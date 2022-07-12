@@ -43,7 +43,7 @@ def calc_candidate_json(labeled_prediction, affine, name, ptime):
         position = means
         cleaned_data = (data.T - means).T
         cov = np.cov(cleaned_data)
-        print(cov)
+        print(np.isnan(cov).any())
         v, w = np.linalg.eig(cov)
         rotated_data = w @ cleaned_data
         wpinv = np.linalg.pinv(w)
