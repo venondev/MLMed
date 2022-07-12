@@ -75,7 +75,7 @@ class PrecomputedTester():
                 div += 1
 
             pred = (sum / div) > 0.5
-            pred = self.calc_single_aneus_pred(pred)
+            pred,_ = self.calc_single_aneus_pred(pred)
             pred[pred > 0] = 1
 
             nib.save(nib.Nifti1Image(pred, label_nifti.affine, header=label_nifti.header),
