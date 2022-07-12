@@ -51,6 +51,7 @@ class PrecomputedTester():
     def evaluate(self):
         logger.info(
             f"precomputed_path_hjamlar: {self.precomputed_path_hjamlar}, precomputed_path_philipp: {self.precomputed_path_philipp}, original_path: {self.original_path} ")
+        list_path= self.precomputed_path_philipp if self.precomputed_path_philipp is not None else self.precomputed_path_hjamlar
         files = os.listdir(self.precomputed_path_philipp)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
         files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
