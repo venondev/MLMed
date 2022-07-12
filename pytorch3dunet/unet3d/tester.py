@@ -37,7 +37,7 @@ class PrecomputedTester():
         return np.clip(sum_ / 3, 0, 1)
 
     def load_label(self, file):
-        label_nifti = nib.load(os.path.join(self.original_path, file + "_mask.nii.gz"))
+        label_nifti = nib.load(os.path.join(self.original_path, file + "_masks.nii.gz"))
 
         return label_nifti, label_nifti.get_fdata()
 
