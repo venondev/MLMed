@@ -59,6 +59,7 @@ class PrecomputedTester():
             hjalmar_pred = self.load_hjalmar(file)
             philipp_pred = self.load_philipp(file)
             min_shape=np.minimum(np.minimum(hjalmar_pred.shape,philipp_pred.shape),label.shape)
+            print(min_shape)
             sum = np.zeros_like(min_shape,dtype='float64')
             print(sum.shape)
             label = label[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
