@@ -46,7 +46,7 @@ class PrecomputedTester():
             f"precomputed_path_hjamlar: {self.precomputed_path_hjamlar}, precomputed_path_philipp: {self.precomputed_path_philipp}, original_path: {self.original_path} ")
         files = os.listdir(self.precomputed_path_philipp)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
-        files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
+        files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
         files = list(set(files))
 
         for file in files:
