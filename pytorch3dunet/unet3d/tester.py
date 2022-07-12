@@ -28,7 +28,8 @@ class PrecomputedTester():
         self.original_path = original_path
 
     def load_hjalmar(self, file):
-
+        if self.precomputed_hjalmar is None:
+            return None
         sum_ = nib.load(os.path.join(self.precomputed_path_hjamlar, file + "_sum_rescaled.nii.gz")).get_fdata()
         return np.clip(sum_ / 3, 0, 1)[:256, :256, :220]
 
@@ -37,6 +38,8 @@ class PrecomputedTester():
         return label[:256, :256, :220]
 
     def load_philipp(self, file):
+        if self.precomputed_path_philipp is None:
+            return None
         sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fdata()
         dev_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
         return (sum_ / dev_)[:256, :256, :220]
@@ -49,17 +52,22 @@ class PrecomputedTester():
         files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
         files = list(set(files))
 
-        for file in files:
+        for file in tqdm(files):
             label = self.load_label(file)
-            sum = np.zeros_like(label)
+
             div = 0
+            hjalmar_pred = self.load_hjalmar(file)
+            philipp_pred = self.load_philipp(file)
+            min_shape=np.minimum(hjalmar_pred.shape,philipp_pred.shape,label.shape)
+            sum = np.zeros_like(min_shape)
+            label = label[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
+
+
             if self.precomputed_path_philipp is not None:
-                philipp_pred = self.load_philipp(file)
-                sum += philipp_pred
+                sum += philipp_pred[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
                 div += 1
             if self.precomputed_path_hjamlar is not None:
-                hjalmar_pred = self.load_hjalmar(file)
-                sum += hjalmar_pred
+                sum += hjalmar_pred[0:min_shape[0],0:min_shape[1],0:min_shape[2]]
                 div += 1
 
             pred = (sum/div) > 0.5
