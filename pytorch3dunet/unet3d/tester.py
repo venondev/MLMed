@@ -56,7 +56,7 @@ class PrecomputedTester():
         if not os.path.exists("./final_test"):
             os.makedirs("./final_test")
 
-        for file in tqdm(files[13:]):
+        for file in tqdm(files):
             label_nifti, label = self.load_label(file)
 
             div = 0
