@@ -54,7 +54,10 @@ class PrecomputedTester():
         list_path= self.precomputed_path_philipp if self.precomputed_path_philipp is not None else self.precomputed_path_hjamlar
         files = os.listdir(list_path)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
-        files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
+        if self.precomputed_path_philipp is not None:
+            files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
+        else:
+            files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
         files = list(set(files))
         if not os.path.exists("./final_val"):
             os.makedirs("./final_val")
