@@ -18,7 +18,7 @@ import nibabel as nib
 
 logger = get_logger('UNetTester')
 
-test = True
+test = False
 
 
 class PrecomputedTester():
@@ -37,14 +37,14 @@ class PrecomputedTester():
         return np.clip(sum_ / 3, 0, 1)
 
     def load_label(self, file):
-        label_nifti = nib.load(os.path.join(self.original_path, file + "_orig.nii.gz"))
+        label_nifti = nib.load(os.path.join(self.original_path, file + "_mask.nii.gz"))
 
         return label_nifti, label_nifti.get_fdata()
 
     def load_philipp(self, file):
         if self.precomputed_path_philipp is None:
             return None
-        sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fdata()
+        sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fmdata()
         dev_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
         return (sum_ / dev_)
 
@@ -55,8 +55,8 @@ class PrecomputedTester():
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
         files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
         files = list(set(files))
-        if not os.path.exists("./final_test"):
-            os.makedirs("./final_test")
+        if not os.path.exists("./final_val"):
+            os.makedirs("./final_val")
 
         for file in tqdm(files):
             label_nifti, label = self.load_label(file)
@@ -79,7 +79,7 @@ class PrecomputedTester():
             pred[pred > 0] = 1
 
             nib.save(nib.Nifti1Image(pred, label_nifti.affine, header=label_nifti.header),
-                     './final_test/' + file + '_pred.nii.gz')
+                     './final_val/' + file + '_pred.nii.gz')
 
             if not test:
                 eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),

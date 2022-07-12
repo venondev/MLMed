@@ -3,9 +3,9 @@
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 model_path: model/base_model.pytorch
 precomputed_predictions: true
-precomputed_path_hjalmar: /group/emu/test_out_rescaled_small
-precomputed_path_philipp: /home/tu-pirlet/MLMed/test_out_test
-original_path: /home/tu-pirlet/test_data
+precomputed_path_hjalmar: /home/tu-pirlet/MLMed/last_validation_prediction/hjalmar_pred
+precomputed_path_philipp: /home/tu-pirlet/MLMed/last_validation_prediction/philipp_pred
+original_path: /group/emu/shared/data_norm/full_new_val/
 run:
   name: reduce batchsize 
   notes: first complete run
