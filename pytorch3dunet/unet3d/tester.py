@@ -118,6 +118,7 @@ class Tester:
         result = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         dev = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         self.model.eval()
+        test=True
         # Run predictions on the entire input dataset
 
         with torch.no_grad():
