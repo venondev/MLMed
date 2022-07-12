@@ -28,7 +28,7 @@ class PrecomputedTester():
         self.original_path = original_path
 
     def load_hjalmar(self, file):
-        if self.precomputed_hjalmar is None:
+        if self.precomputed_path_hjamlar is None:
             return None
         sum_ = nib.load(os.path.join(self.precomputed_path_hjamlar, file + "_sum_rescaled.nii.gz")).get_fdata()
         return np.clip(sum_ / 3, 0, 1)[:256, :256, :220]
