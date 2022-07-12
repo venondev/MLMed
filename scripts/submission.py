@@ -61,7 +61,7 @@ def calc_candidate_json(labeled_prediction, affine, name, ptime):
 
 files = os.listdir(input_data_path)
 files = list(filter(lambda x: x.endswith("_pred.nii.gz"), files))
-names = [i.replace("_pred.nii.gz", "") for i in files][:4]
+names = [i.replace("_pred.nii.gz", "") for i in files]
 print(names)
 if not os.path.exists("./submission/task1/"):
     os.makedirs("./submission/task1/")
