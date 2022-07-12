@@ -41,6 +41,7 @@ def calc_candidate_json(labeled_prediction, affine, name, ptime):
 
         means = data.mean(axis=1)
         position = means
+        print(means)
         cleaned_data = (data.T - means).T
         print(cleaned_data)
         cov = np.cov(cleaned_data)
