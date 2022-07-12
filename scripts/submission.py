@@ -76,7 +76,7 @@ for name in tqdm(names):
     # load data
     tqdm.write(f"Processing: {name}...")
     prediction_nifti = nib.load(input_data_path + name + '_pred.nii.gz')
-    original_nifti = nib.load("/home/tu-pirlet/test_data" + name + '_pred.nii.gz')
+    original_nifti = nib.load("/home/tu-pirlet/test_data/" + name + '_pred.nii.gz')
 
     binary_prediction = prediction_nifti.get_fdata()
 
