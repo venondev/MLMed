@@ -41,11 +41,8 @@ def calc_candidate_json(labeled_prediction, affine, name, ptime):
 
         means = data.mean(axis=1)
         position = means
-        print(means)
         cleaned_data = (data.T - means).T
-        print(cleaned_data)
         cov = np.cov(cleaned_data)
-        print(np.isnan(cov).any())
         v, w = np.linalg.eig(cov)
         rotated_data = w @ cleaned_data
         wpinv = np.linalg.pinv(w)
@@ -75,7 +72,7 @@ if not os.path.exists("./submission/task2/"):
 result_task1 = {"username": "Emu", "task_1_results": []}
 with open(input_data_path + "p_time.json", "r") as f:
     ptimes = json.load(f)
-for name in tqdm(names[15:]):
+for name in tqdm(names):
     # load data
     tqdm.write(f"Processing: {name}...")
     prediction_nifti = nib.load(input_data_path + name + '_pred.nii.gz')
