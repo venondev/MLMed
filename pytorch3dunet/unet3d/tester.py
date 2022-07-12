@@ -18,8 +18,9 @@ import nibabel as nib
 
 logger = get_logger('UNetTester')
 
-
+test=True
 class PrecomputedTester():
+
     def __init__(self, precomputed_path_hjamlar, precomputed_path_philipp, original_path):
         self.metric = MedMl()
         self.val_scores = utils.EvalScoreTracker()
@@ -31,18 +32,18 @@ class PrecomputedTester():
         if self.precomputed_path_hjamlar is None:
             return None
         sum_ = nib.load(os.path.join(self.precomputed_path_hjamlar, file + "_sum_rescaled.nii.gz")).get_fdata()
-        return np.clip(sum_ / 3, 0, 1)[:256, :256, :220]
+        return np.clip(sum_ / 3, 0, 1)
 
     def load_label(self, file):
         label = nib.load(os.path.join(self.original_path, file + "_masks.nii.gz")).get_fdata()
-        return label[:256, :256, :220]
+        return label
 
     def load_philipp(self, file):
         if self.precomputed_path_philipp is None:
             return None
         sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fdata()
         dev_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
-        return (sum_ / dev_)[:256, :256, :220]
+        return (sum_ / dev_)
 
     def evaluate(self):
         logger.info(
@@ -71,9 +72,10 @@ class PrecomputedTester():
                 div += 1
 
             pred = (sum/div) > 0.5
-            eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
-                                     torch.tensor(label[np.newaxis, np.newaxis]))
-            self.val_scores.update(eval_score, 1)
+            if not test:
+                eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
+                                         torch.tensor(label[np.newaxis, np.newaxis]))
+                self.val_scores.update(eval_score, 1)
 
     def evaluate2(self):
         # Save results to disk

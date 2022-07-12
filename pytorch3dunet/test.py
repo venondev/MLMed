@@ -61,10 +61,10 @@ def main():
         with open("./test_out/p_time.json", "w") as outfile:
             json.dump(ptimes, outfile, indent=4)
 
-    eval_score, eval_score_detailed = tester.val_scores.avg
-    if hasattr(tester.metric, "compute_final"):
-        eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
-    print(eval_score, eval_score_detailed)
+    # eval_score, eval_score_detailed = tester.val_scores.avg
+    # if hasattr(tester.metric, "compute_final"):
+    #     eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
+    # print(eval_score, eval_score_detailed)
 
 
 if __name__ == '__main__':
