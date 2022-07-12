@@ -52,7 +52,7 @@ loaders:
   test:
     # paths to the val datasets
     file_paths:
-      - "/group/emu/data_norm/full_new_train/h5"
+      - "/home/tu-pirlet/test_data/h5"
       #- "./test_out/"
     slice_path: "test_datasets.pkl"
 
