@@ -57,10 +57,6 @@ def calc_candidate_json(labeled_prediction, affine, name, ptime):
     return dataset_item
 
 
-def manipulate_data(input):
-    out = np.zeros_like(input)
-    out[input > 0.5] = 1
-    return out
 
 
 files = os.listdir(input_data_path)
@@ -80,27 +76,22 @@ for name in tqdm(names):
     # load data
     tqdm.write(f"Processing: {name}...")
     prediction_nifti = nib.load(input_data_path + name + '_pred.nii.gz')
-    dev = nib.load(input_data_path + name + '_dev.nii.gz').get_fdata()
-    original_header = prediction_nifti.header
-    affine = prediction_nifti.affine
-    prediction = prediction_nifti.get_fdata()
+    original_nifti = nib.load("/home/tu-pirlet/test_data" + name + '_pred.nii.gz')
+
+    binary_prediction = prediction_nifti.get_fdata()
 
     # prediction -> binary prediction
-    binary_prediction = manipulate_data(prediction / dev)
     prediction_idx = np.where(binary_prediction > 0.5)
     labeled_prediction, _ = ndi.label(binary_prediction)
 
     # store task2 output
 
-    nib.save(nib.Nifti1Image(labeled_prediction, affine, header=original_header),
+    nib.save(nib.Nifti1Image(labeled_prediction, original_nifti.affine, header=original_nifti.header),
              './submission/task2/' + name + '_output.nii.gz')
 
     # calc task1
-    ptime = -1
-    for i in ptimes:
-        if i["id"] == name:
-            ptime = i["processing_time_in_seconds"]
-    result_task1["task_1_results"].append(calc_candidate_json(labeled_prediction, affine, name, ptime))
+    ptime = ptimes[name]
+    result_task1["task_1_results"].append(calc_candidate_json(labeled_prediction, original_nifti.affine, name, ptime))
 print(f"Store Task1 in ./submission/task1/task1.json")
 print(f"Store Task2 in ./submission/task2/*")
 with open("./submission/task1/task1.json", "w") as outfile:
