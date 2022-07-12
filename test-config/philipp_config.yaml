@@ -35,7 +35,7 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 8
+  batch_size: 4
   # how many subprocesses to use for data loading
   num_workers: 2
   # path to the raw data within the H5
