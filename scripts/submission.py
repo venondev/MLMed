@@ -70,7 +70,7 @@ if not os.path.exists("./submission/task2/"):
 
 
 result_task1 = {"username": "Emu", "task_1_results": []}
-with open(input_data_path + "/p_time.json", "r") as f:
+with open(input_data_path + "p_time.json", "r") as f:
     ptimes = json.load(f)
 for name in tqdm(names):
     # load data
