@@ -18,14 +18,18 @@ files = list(map(lambda x: x.replace("_orig.nii.gz", ""), files))
 
 
 # Opening JSON file
-f = open('/home/tu-pirlet/MLMed/data.json', )
+
+
+test_set=True
 
 # returns JSON object as
 # a dictionary
-data = json.load(f)
+if not test_set:
+    f = open('/home/tu-pirlet/MLMed/data.json', )
+    data = json.load(f)
 
-train = data["train"]
-val = data["val"]
+    train = data["train"]
+    val = data["val"]
 
 def move(files_f, folder):
 
@@ -36,8 +40,9 @@ def move(files_f, folder):
         shutil.copyfile(os.path.join(data_path, i + "_orig.nii.gz"), os.path.join(folder, i + "_orig.nii.gz"))
         shutil.copyfile(os.path.join(data_path, i + "_masks.nii.gz"), os.path.join(folder, i + "_masks.nii.gz"))
 
-move(train, "/home/tu-pirlet/MLMed/data/full_new_train")
-move(val, "/home/tu-pirlet/MLMed/data/full_new_val")
+if not test_set:
+    move(train, "/home/tu-pirlet/MLMed/data/full_new_train")
+    move(val, "/home/tu-pirlet/MLMed/data/full_new_val")
 
 def test(datapath):
     files = os.listdir(datapath)
@@ -60,15 +65,18 @@ def test(datapath):
         print(f"{idx} / {len(files)}: {name}")
 
         raw = nib.load(os.path.join(datapath, name + "_orig.nii.gz"))
-        label = nib.load(os.path.join(datapath, name + "_masks.nii.gz"))
+        if not test_set:
+            label = nib.load(os.path.join(datapath, name + "_masks.nii.gz"))
 
         raw_np = raw.get_fdata()
-        label_np = label.get_fdata()
+        if not test_set:
+            label_np = label.get_fdata()
 
         if zoom:
             raw_np = ndi.zoom(raw_np, (0.5, 0.5, 0.5), order=3)
-            label_np = ndi.zoom(label_np, (0.5, 0.5, 0.5), order=0)
-            label_np = label_np > 0.5
+            if not test_set:
+                label_np = ndi.zoom(label_np, (0.5, 0.5, 0.5), order=0)
+                label_np = label_np > 0.5
 
         # Find Artery
         perc = np.percentile(raw_np, 99)
@@ -94,8 +102,8 @@ def test(datapath):
         t[remove_idx] = 0
 
         t = ndi.binary_closing(t, iterations=closing_thres)
-
-        overlap_mask = np.logical_and(label_np, t)
+        if not test_set:
+            overlap_mask = np.logical_and(label_np, t)
 
         # Normalize
         min_val = raw_np.min()
@@ -104,11 +112,14 @@ def test(datapath):
         raw_np = (raw_np - min_val) / (max_val - min_val)
 
         with h5py.File(os.path.join(h5_save_folder, f"{name}.h5"), "w") as f:
+            if not test_set:
+                f.create_dataset("label", data=label_np)
+                f.create_dataset("artery", data=t)
+                f.create_dataset("overlap_mask", data=overlap_mask)
             f.create_dataset("raw", data=raw_np)
-            f.create_dataset("label", data=label_np)
-            f.create_dataset("artery", data=t)
-            f.create_dataset("overlap_mask", data=overlap_mask)
 
 
-test("/home/tu-pirlet/MLMed/data/full_new_train")
-test("/home/tu-pirlet/MLMed/data/full_new_val")
+
+test("/home/tu-pirlet/test_data")
+if not test_set:
+    test("/home/tu-pirlet/MLMed/data/full_new_val")
