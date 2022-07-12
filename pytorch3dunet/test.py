@@ -22,6 +22,7 @@ def main():
 
     if config.get("precomputed_predictions", False):
         print("Using precomputed predictions")
+        print(config.get(["precomputed_path_philipp"],None))
         tester = PrecomputedTester(config.get(["precomputed_path_hjalmar"],None),config.get(["precomputed_path_philipp"],None),config.get(["original_path"],None))
         tester.evaluate2()
 
