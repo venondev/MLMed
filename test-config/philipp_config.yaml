@@ -2,7 +2,7 @@
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 model_path: model/base_model.pytorch
-#precomputed_predictions: true
+precomputed_predictions: false
 run:
   name: reduce batchsize 
   notes: first complete run
