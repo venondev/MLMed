@@ -34,7 +34,7 @@ class PrecomputedTester():
         if self.precomputed_path_hjamlar is None:
             return None
         sum_ = nib.load(os.path.join(self.precomputed_path_hjamlar, file + "_sum_rescaled.nii.gz")).get_fdata()
-        return np.clip(sum_ / 3, 0, 1)
+        return sum_ / 3
 
     def load_label(self, file):
         label_nifti = nib.load(os.path.join(self.original_path, file + "_masks.nii.gz"))
