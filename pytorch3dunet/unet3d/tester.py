@@ -64,6 +64,8 @@ class PrecomputedTester():
 
         for file in tqdm(files):
             label_nifti, label = self.load_label(file)
+            ratio=label_nifti.header.get("pixdim")[1:4].mean()
+            print(ratio)
 
             div = 0
             hjalmar_pred = self.load_hjalmar(file)
@@ -87,7 +89,7 @@ class PrecomputedTester():
 
             if not test:
                 eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
-                                         torch.tensor(label[np.newaxis, np.newaxis]))
+                                         torch.tensor(label[np.newaxis, np.newaxis]),ratio=ratio)
                 self.val_scores.update(eval_score, 1)
 
     def calc_single_aneus_pred(self, pred, threshold=60):

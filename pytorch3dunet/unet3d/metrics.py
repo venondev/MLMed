@@ -34,15 +34,15 @@ class DiceCoefficient:
 
 
 def compute_volume_bias(volume_gt, volume_pred):
-    return np.clip(1 / np.mean(np.abs(volume_gt - volume_pred)), 0, 1)
+    return np.mean(np.abs(volume_gt - volume_pred))
 
 
 def compute_volume_std_dev(volume_gt, volume_pred):
-    return np.clip(1 / np.std(np.abs(volume_gt - volume_pred)), 0, 1)
+    return np.std(np.abs(volume_gt - volume_pred))
 
 
 def compute_volume_pearson(volume_gt, volume_pred):
-    return max(0, (np.corrcoef(volume_gt, volume_pred)[0, 1]))
+    return np.corrcoef(volume_gt, volume_pred)[0, 1]
 
 
 # Filters out predictions with a volume less than the given threshold
@@ -116,33 +116,40 @@ def compute_detection_metrics(pred, label):
 
     return tp, fp, fn, jaccard_scores
 
+def transform_affine(input, transformation):
+    assert input.shape[0] == 3, "only 3d coordinates (input.shape = (3,:))"
+    assert transformation.shape == (4, 4), "wrong affine transformation shape (transformation.shape = (4,4))"
+    ones = np.ones((1, input.shape[1]))
+    affine_input = np.vstack((input, ones))
+    output = (transformation @ affine_input)[:3]
+    return output
 
 class MedMl:
 
     def __init__(self, skip_channels=(), ignore_index=None, **kwargs):
         self.compute_jaccard = MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
 
-    def __call__(self, input, target):
+    def __call__(self, input, target, ratio):
         assert input.dim() == 5
         assert input.size() == target.size()
 
         tp, fp, fn, jaccard_scores_per_aneu = compute_detection_metrics(input, target)
 
         input_bin = (input > 0.5).long()
-
-        hausdorff_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]),
-                                            compute_hausdorff_distance(input_bin, target))
-        avg_score = 1 / torch.maximum(torch.ones(input_bin.shape[0]),
-                                      compute_average_surface_distance(input_bin, target))
         jaccard_score = self.compute_jaccard(input, target)
+
+
+        hausdorff_score = compute_hausdorff_distance(input_bin, target)
+        avg_score = compute_average_surface_distance(input_bin, target)
+
         overlap = (torch.logical_and(input_bin, target).sum(dim=(1, 2, 3, 4)) >= 1).float()
 
         avg_score[avg_score == float("inf")] = float("nan")
         hausdorff_score[hausdorff_score == float("inf")] = float("nan")
 
         detailed_score = {
-            "hausdorff": hausdorff_score,
-            "avg_dist": avg_score,
+            "hausdorff": hausdorff_score*ratio,
+            "avg_dist": avg_score*ratio,
             "jaccard": jaccard_score,
             "overlap": overlap,
             "jaccard_per_aneu": jaccard_scores_per_aneu,
@@ -154,10 +161,12 @@ class MedMl:
         for _input, _target in zip(input_bin, target):
             volume_gt.append(_target.sum().item())
             volume_pred.append(_input.sum().item())
-
+        volume_gt=np.array(volume_gt)*(ratio**3)
+        volume_pred = np.array(volume_pred) * (ratio ** 3)
         return detailed_score, (volume_gt, volume_pred, tp, fp, fn)
 
     def compute_final(self, eval_tracker):
+
         volume_gt = np.concatenate([x[0] for x in eval_tracker.cache])
         volume_pred = np.concatenate([x[1] for x in eval_tracker.cache])
 
