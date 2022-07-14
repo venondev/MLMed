@@ -63,6 +63,7 @@ class PrecomputedTester():
             os.makedirs("./final_val")
 
         for file in tqdm(files):
+            print(file)
             label_nifti, label = self.load_label(file)
             ratio=label_nifti.header.get("pixdim")[1:4].mean()
             print(label_nifti.header.get("pixdim"))
