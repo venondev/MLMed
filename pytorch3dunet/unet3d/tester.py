@@ -66,7 +66,7 @@ class PrecomputedTester():
             print(file)
             label_nifti, label = self.load_label(file)
             ratio=label_nifti.header.get("pixdim")[1:4].mean()
-            print(label_nifti.header.get("pixdim"))
+            print(ratio)
 
             div = 0
             hjalmar_pred = self.load_hjalmar(file)
