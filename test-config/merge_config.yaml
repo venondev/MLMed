@@ -1,0 +1,7 @@
+# Sample configuration file for training a 3D U-Net on a task of predicting the nuclei in 3D stack from the lightsheet
+# microscope. Training done with Binary Cross-Entropy.
+# Training and validation data can be downloaded from: https://osf.io/thxzn/
+precomputed_path_aligned: /home/tu-pirlet/MLMed/last_validation_prediction/hjalmar_pred
+precomputed_path_normal: /home/tu-pirlet/MLMed/last_validation_prediction/philipp_pred
+original_path: /group/emu/shared/data_norm/full_new_val/
+evaluate: false

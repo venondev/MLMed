@@ -4,7 +4,7 @@ from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from pytorch3dunet.unet3d import utils
-from pytorch3dunet.unet3d.metrics import MedMl
+from pytorch3dunet.unet3d.metrics import MedMl, MedMlSub
 from pytorch3dunet.unet3d.utils import get_logger
 import torch
 import numpy as np
@@ -18,22 +18,24 @@ import nibabel as nib
 
 logger = get_logger('UNetTester')
 
-test = False
+
 
 
 class PrecomputedTester():
 
-    def __init__(self, precomputed_path_hjamlar, precomputed_path_philipp, original_path):
-        self.metric = MedMl()
+    def __init__(self, precomputed_path_aligned, precomputed_path_normal, original_path, final_out_path,evaluate):
+        self.metric = MedMlSub()
+        self.evaluate=evaluate
         self.val_scores = utils.EvalScoreTracker()
-        self.precomputed_path_hjamlar = precomputed_path_hjamlar
-        self.precomputed_path_philipp = precomputed_path_philipp
+        self.precomputed_path_aligned = precomputed_path_aligned
+        self.precomputed_path_normal = precomputed_path_normal
         self.original_path = original_path
+        self.final_out_path=final_out_path
 
-    def load_hjalmar(self, file):
-        if self.precomputed_path_hjamlar is None:
+    def load_aligned(self, file):
+        if self.precomputed_path_aligned is None:
             return None
-        sum_ = nib.load(os.path.join(self.precomputed_path_hjamlar, file + "_sum_rescaled.nii.gz")).get_fdata()
+        sum_ = nib.load(os.path.join(self.precomputed_path_aligned, file + "_sum_rescaled.nii.gz")).get_fdata()
         return sum_ / 3
 
     def load_label(self, file):
@@ -41,20 +43,25 @@ class PrecomputedTester():
 
         return label_nifti, label_nifti.get_fdata()
 
-    def load_philipp(self, file):
-        if self.precomputed_path_philipp is None:
+    def load_raw(self, file):
+        label_nifti = nib.load(os.path.join(self.original_path, file + "_orig.nii.gz"))
+
+        return label_nifti, label_nifti.get_fdata()
+
+    def load_normal(self, file):
+        if self.precomputed_path_normal is None:
             return None
-        sum_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_pred.nii.gz")).get_fdata()
-        dev_ = nib.load(os.path.join(self.precomputed_path_philipp, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
+        sum_ = nib.load(os.path.join(self.precomputed_path_normal, file + "_pred.nii.gz")).get_fdata()
+        dev_ = nib.load(os.path.join(self.precomputed_path_normal, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
         return (sum_ / dev_)
 
     def evaluate(self):
         logger.info(
-            f"precomputed_path_hjamlar: {self.precomputed_path_hjamlar}, precomputed_path_philipp: {self.precomputed_path_philipp}, original_path: {self.original_path} ")
-        list_path= self.precomputed_path_philipp if self.precomputed_path_philipp is not None else self.precomputed_path_hjamlar
+            f"precomputed_path_aligned: {self.precomputed_path_aligned}, precomputed_path_normal: {self.precomputed_path_normal}, original_path: {self.original_path} ")
+        list_path = self.precomputed_path_normal if self.precomputed_path_normal is not None else self.precomputed_path_aligned
         files = os.listdir(list_path)
         files = list(filter(lambda x: x.endswith(".nii.gz"), files))
-        if self.precomputed_path_philipp is not None:
+        if self.precomputed_path_normal is not None:
             files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
         else:
             files = list(map(lambda x: "_".join(x.split("_")[:-2]), files))
@@ -64,33 +71,36 @@ class PrecomputedTester():
 
         for file in tqdm(files):
             print(file)
-            label_nifti, label = self.load_label(file)
-            ratio=label_nifti.header.get("pixdim")[1:4].mean()
+            if not self.evaluate:
+                label_nifti, label = self.load_raw(file)
+            else:
+                label_nifti, label = self.load_label(file)
+            ratio = label_nifti.header.get("pixdim")[1:4].mean()
             print(ratio)
 
             div = 0
-            hjalmar_pred = self.load_hjalmar(file)
-            philipp_pred = self.load_philipp(file)
+            aligned_pred = self.load_aligned(file)
+            normal_pred = self.load_normal(file)
             sum = np.zeros_like(label, dtype='float64')
             label = label
 
-            if self.precomputed_path_philipp is not None:
-                sum += philipp_pred
+            if self.precomputed_path_normal is not None:
+                sum += normal_pred
                 div += 1
-            if self.precomputed_path_hjamlar is not None:
-                sum += hjalmar_pred
+            if self.precomputed_path_aligned is not None:
+                sum += aligned_pred
                 div += 1
 
             pred = (sum / div) > 0.5
-            #pred,_ = self.calc_single_aneus_pred(pred)
+            # pred,_ = self.calc_single_aneus_pred(pred)
             pred[pred > 0] = 1
 
             nib.save(nib.Nifti1Image(pred, label_nifti.affine, header=label_nifti.header),
-                     './final_val/' + file + '_pred.nii.gz')
+                     self.final_out_path+'/' + file + '_pred.nii.gz')
 
-            if not test:
+            if self.evaluate:
                 eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
-                                         torch.tensor(label[np.newaxis, np.newaxis]),ratio=ratio)
+                                         torch.tensor(label[np.newaxis, np.newaxis]), ratio=ratio)
                 self.val_scores.update(eval_score, 1)
 
     def calc_single_aneus_pred(self, pred, threshold=60):
@@ -110,34 +120,14 @@ class PrecomputedTester():
 
         return pred_labeled, len(keep)
 
-    def evaluate2(self):
-        # Save results to disk
-
-        print(self.precomputed_path)
-        files = os.listdir(self.precomputed_path)
-        files = list(filter(lambda x: x.endswith(".nii.gz"), files))
-        files = list(map(lambda x: "_".join(x.split("_")[:-1]), files))
-        files = list(set(files))
-
-        orig_path = "/group/emu/data_norm/full_new_val"
-        with logging_redirect_tqdm():
-            for file in tqdm(files):
-                label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
-                # label = label[:256, :256, :220]
-                sum_ = nib.load(os.path.join(self.precomputed_path, file + "_pred.nii.gz")).get_fdata()
-                dev_ = nib.load(os.path.join(self.precomputed_path, file + "_dev.nii.gz")).get_fdata() + 0.1e-10
-                pred = (sum_ / dev_) > 0.5
-                eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]),
-                                         torch.tensor(label[np.newaxis, np.newaxis]))
-                self.val_scores.update(eval_score, 1)
-
 
 class Tester:
-    def __init__(self, model, device, **kwargs):
+    def __init__(self, model, device, test_out_path, **kwargs):
         self.model = model
         self.device = device
         self.metric = MedMl()
         self.val_scores = utils.EvalScoreTracker()
+        self.test_out_path = test_out_path
 
     def final_activation(self, input):
         if isinstance(self.model, nn.DataParallel):
@@ -180,21 +170,12 @@ class Tester:
         name = test_path_split[-1].replace(".h5", "")
         orig_path = "/".join(test_path_split[:-2])
 
-        if not os.path.exists("./test_out_test"):
-            os.makedirs("./test_out_test")
+
 
         orig_data = nib.load(orig_path + "/" + name + "_orig.nii.gz")
         nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine, header=orig_data.header),
-                 './test_out_test/' + name + '_pred.nii.gz')
+                 self.test_out_path + '/' + name + '_pred.nii.gz')
         nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine, header=orig_data.header),
-                 './test_out_test/' + name + '_dev.nii.gz')
+                 self.test_out_path + '/' + name + '_dev.nii.gz')
 
-        if not test:
-            result /= dev
-            result[result >= 0.5] = 1
-            result[result < 1] = 0
-
-            label = h5py.File(test_loader.dataset.file_path, 'r')[test_loader.dataset.label_internal_path][:]
-            eval_score = self.metric(result[np.newaxis, np.newaxis].cpu(), torch.tensor(label[np.newaxis, np.newaxis]))
-            self.val_scores.update(eval_score, 1)
         return (time_dif, name)
