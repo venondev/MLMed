@@ -37,6 +37,7 @@ class ConfigDataset(Dataset):
         return default_prediction_collate(batch)
 
 
+
 class SliceBuilder:
     """
     Builds the position of the patches in a given raw/label/weight ndarray based on the the patch and stride shape
@@ -148,13 +149,12 @@ class FilterSliceBuilder(SliceBuilder):
         label_labels, num_labels = ndi.label(label_dataset)
 
         unique_aneus = np.unique(label_labels)
-        print("unique_aneus in this set", unique_aneus)
 
         label_volume = np.zeros(num_labels)
         for i in range(1, num_labels + 1):
-            m = label_labels[label_labels == i]
+            m = label_labels == i
 
-            volume = m.sum() / i
+            volume = m.sum()
 
             t = np.zeros(label_dataset.shape)
             t[label_labels == i] = 1
@@ -174,14 +174,14 @@ class FilterSliceBuilder(SliceBuilder):
 
             if aneu_volume != 0:
                 label_patch = label_labels[label_idx]
-                label_patch_center = label_patch if border == 0 else label_patch[border:-border, border:-border,
-                                                                     border:-border]
+                label_patch_center = label_patch if border == 0 else label_patch[border:-border, border:-border, border:-border]
 
                 total_volume = 0
                 for sep_aneu in np.unique(label_patch_center):
                     if sep_aneu == 0:
                         continue
                     total_volume += label_volume[sep_aneu - 1]
+
                 return (aneu_volume / total_volume) >= threshold
 
             return not has_aneu and rand_state.rand() < slack_acceptance

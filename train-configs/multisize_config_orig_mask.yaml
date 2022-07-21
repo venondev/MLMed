@@ -1,24 +1,23 @@
 # Sample configuration file for training a 3D U-Net on a task of predicting the nuclei in 3D stack from the lightsheet
 # microscope. Training done with Binary Cross-Entropy.
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
-run:
-  name: Resized Artery Two Sizes bs:8 lvl:2 normal
+run: 
+  name: Multizoom Continue Orig Mask
   notes: first complete run
-  resume: false
 # model configuration
 model:
-  use_attention_gate: false
+  use_attention_gate: true
+  #num_levels: 3
   # model class, e.g. UNet3D, ResidualUNet3D
   name: UNet3D
   # number of input channels to the model
-  in_channels: 2
+  in_channels: 1
   # number of output channels
   out_channels: 1
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
-  layer_order: gcl
+  layer_order: bcl
   # number of features at each level of the U-Net
   f_maps: 32
-  num_levels: 2
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
@@ -38,18 +37,18 @@ trainer:
   # path to the checkpoint directory
   checkpoint_dir: checkpoints
   # path to latest checkpoint; if provided the training will be resumed from that checkpoint
-  resume: null
+  resume: /home/lm/Schreibtisch/Uni/MedicalML/pytorch-3dunet/checkpoints/last_checkpoint.pytorch
   # path to the best_checkpoint.pytorch; to be used for fine-tuning the model with additional ground truth
   # make sure to decrease the learning rate in the optimizer config accordingly
   pre_trained: null
   # how many iterations between validations
-  validate_after_iters: 200
+  validate_after_iters: 100
   # how many iterations between tensorboard logging
   log_after_iters: 100
-  # vielfaches von validate
-  store_after_val: 1
+  # vielfaches von validate 
+  store_after_val: 3
   # max number of epochs
-  max_num_epochs: 200
+  max_num_epochs: 100
   # max number of iterations
   max_num_iterations: 10000000
   # model with higher eval score is considered better
@@ -64,7 +63,7 @@ loss:
 # optimizer configuration
 optimizer:
   # initial learning rate
-  learning_rate: 0.0005
+  learning_rate: 0.0001
   # weight decay
   weight_decay: 0.00001
 # evaluation metric
@@ -92,76 +91,44 @@ loaders:
   batch_size: 8
   # how many subprocesses to use for data loading
   num_workers: 8
-
-  load_slices: true
-  store_slices: false
-
-  artery_internal_path: /artery
+  artery_internal_path: null
   # path to the raw data within the H5
   raw_internal_path: /raw
   # path to the the label data withtin the H5
-  label_internal_path: /overlap_mask
+  label_internal_path: /mask
   # path to the pixel-wise weight map withing the H5 if present
   weight_internal_path: null
   # configuration of the train loader
+
   train:
     # paths to the training datasets
     file_paths:
-      - /media/lm/Samsung_T5/Uni/Medml/training/train/h5
-      - /media/lm/Samsung_T5/Uni/Medml/training/train/h5_zoomed
+      - /media/lm/Samsung_T5/Uni/Medml/t/train/h5_aligned
 
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
       patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [32, 32, 32]
-
-      border: [0, 0, 0]
-      # minimum volume of the labels in the patch
+      stride_shape: [16, 16, 16]
+      border: 0
       threshold: 1
-      # probability of accepting patches which do not fulfil the threshold criterion
       slack_acceptance: 0
 
     transformer:
-      artery:
-        - name: RandomFlip
-        - name: RandomRotate
-          angle_spectrum: 180
-          mode: reflect
-        - name: RandomTranslate
-          order: 0
-          sigma: [0, 4]
-        - name: RandomScale
-          order: 0
-          sigma: [0.9, 1.1]
-        - name: ToTensor
-          expand_dims: true
       raw:
         - name: RandomFlip
         - name: RandomRotate
           angle_spectrum: 180
           mode: reflect
-        - name: RandomTranslate
-          order: 3
-          sigma: [0, 4]
-        - name: RandomScale
-          order: 3
-          sigma: [0.9, 1.1]
         - name: ToTensor
           expand_dims: true
-        - name: ConcatArtery
       label:
         - name: RandomFlip
         - name: RandomRotate
           angle_spectrum: 180
           mode: reflect
-        - name: RandomTranslate
-          order: 0
-          sigma: [0, 4]
-        - name: RandomScale
-          order: 0
-          sigma: [0.9, 1.1]
         - name: ToTensor
           expand_dims: true
 
@@ -169,31 +136,24 @@ loaders:
   val:
     # paths to the val datasets
     file_paths:
-      - /media/lm/Samsung_T5/Uni/Medml/training/val/h5
-      - /media/lm/Samsung_T5/Uni/Medml/training/val/h5_zoomed
+      - /media/lm/Samsung_T5/Uni/Medml/t/val/h5_aligned
 
+    # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
     slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
       patch_shape: [64, 64, 64]
       # train stride between patches
-      stride_shape: [32, 32, 32]
-
-      border: [0, 0, 0]
-      # minimum volume of the labels in the patch
+      stride_shape: [16, 16, 16]
+      border: 0
       threshold: 1
-      # probability of accepting patches which do not fulfil the threshold criterion
       slack_acceptance: 0
 
     # data augmentation
     transformer:
-      artery:
-        - name: ToTensor
-          expand_dims: true
       raw:
         - name: ToTensor
           expand_dims: true
-        - name: ConcatArtery
       label:
         - name: ToTensor
           expand_dims: true
