@@ -4,6 +4,7 @@ import h5py
 import os
 import numpy as np
 import scipy.ndimage as ndi
+import sys
 from utils import normalize, create_folder_if_not_exist, batch
 
 # Calc stats Max Aneurysm Size
@@ -105,7 +106,7 @@ def generate_data(datapath, type):
             t.join()
 
 
-INPUT_PATH = "/media/lm/Samsung_T5/Uni/Medml/t"
+INPUT_PATH = sys.argv[1] if len(sys.argv) == 2 else "/media/lm/Samsung_T5/Uni/Medml/t"
 
 if __name__ == "__main__":
     generate_data(INPUT_PATH, "train")

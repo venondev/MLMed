@@ -2,6 +2,7 @@ import h5py
 import os
 import numpy as np
 import nibabel as nib
+import sys
 from utils import create_folder_if_not_exist, get_case_names, normalize, get_vessel_segmentation
 
 # PARAMS
@@ -33,7 +34,7 @@ def generate_data(datapath, type):
             f.create_dataset("artery", data=vessel_seg)
             f.create_dataset("overlap_mask", data=overlap_mask)
 
-INPUT_PATH = "/media/lm/Samsung_T5/Uni/Medml/t"
+INPUT_PATH = sys.argv[1] if len(sys.argv) == 2 else "/media/lm/Samsung_T5/Uni/Medml/t"
 
 if __name__ == "__main__":
     generate_data(INPUT_PATH, "train")
