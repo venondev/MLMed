@@ -12,7 +12,9 @@ Create virtual environment and install requirements from requirements.txt
 ## Models
 
 We developed two models. The models have the same underlying architecture, the main difference is that the first model uses the raw full image as input for the train patches, while the second model uses train patches where the aneurysm sizes are aligned.
-
+#### checkpoints:
+- aligned model: model/aligned_model.pytorch
+- normal model: model/normal_model.pytorch
 ## How to train the model
 
 To generate the training data for the first model run the following script:
