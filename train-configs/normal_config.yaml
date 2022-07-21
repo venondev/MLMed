@@ -109,34 +109,12 @@ loaders:
     slice_path: "train_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
-    slice_builder1:
-      name: FilterSliceBuilder
-      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [ 32, 32, 32 ]
-      # train stride between patches
-      stride_shape: [ 10, 10, 10 ]
-      border: 0
-      # minimum volume of the labels in the patch
-      threshold: 1
-      # probability of accepting patches which do not fulfil the threshold criterion
-      slack_acceptance: 0.00
-    slice_builder2:
+    slice_builder:
       name: FilterSliceBuilder
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
       patch_shape: [ 64, 64, 64 ]
       # train stride between patches
       stride_shape: [ 20, 20, 20 ]
-      border: 0
-      # minimum volume of the labels in the patch
-      threshold: 1
-      # probability of accepting patches which do not fulfil the threshold criterion
-      slack_acceptance: 0.00
-    slice_builder3:
-      name: FilterSliceBuilder
-      # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
-      patch_shape: [ 128, 128, 128 ]
-      # train stride between patches
-      stride_shape: [ 40, 40, 40 ]
       border: 0
       # minimum volume of the labels in the patch
       threshold: 1

@@ -158,79 +158,72 @@ def main():
     files = os.listdir(file_path)
     files = list(filter(lambda x: x.endswith("orig.nii.gz"), files))
 
-    if False:
-        print("Using precomputed predictions")
-        tester = PrecomputedTester(file_path)
-        tester.evaluate()
-        # TODO: Schauen wie wir das mit der Time machen
-        eval_score, eval_score_detailed = tester.val_scores.avg
-        if hasattr(tester.metric, "compute_final"):
-            eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
-        print(eval_score, eval_score_detailed)
-    else:
-        # Create the model
+    test_out_path = config.get("test_out_path", "./test_out/")
+    if not os.path.exists(test_out_path):
+        os.makedirs(test_out_path)
 
-        times = {}
-        # Generate Multiscale Inputs
-        multisize_save_path = file_path + "/" + multisize_path
-        raw_path = file_path
-        resize_multisize(times, raw_path, multisize_save_path, files)
-        print("Finished Scaling...")
-        print(times)
 
-        model = get_model(config['model'])
+    # Create the model
 
-        # Load model state
-        model_path = config['model_path']
-        logger.info(f'Loading model from {model_path}...')
-        utils.load_checkpoint(model_path, model)
-        # use DataParallel if more than 1 GPU available
-        device = config['device']
-        if torch.cuda.device_count() > 1 and not device.type == 'cpu':
-            model = nn.DataParallel(model)
-            logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
+    times = {}
+    # Generate Multiscale Inputs
+    multisize_save_path = file_path + "/" + multisize_path
+    raw_path = file_path
+    resize_multisize(times, raw_path, multisize_save_path, files)
+    print("Finished Scaling...")
+    print(times)
 
-        logger.info(f"Sending the model to '{device}'")
-        model = model.to(device)
+    model = get_model(config['model'])
 
-        # create predictor instance
-        tester = Tester(model, device)
+    # Load model state
+    model_path = config['model_path']
+    logger.info(f'Loading model from {model_path}...')
+    utils.load_checkpoint(model_path, model)
+    # use DataParallel if more than 1 GPU available
+    device = config['device']
+    if torch.cuda.device_count() > 1 and not device.type == 'cpu':
+        model = nn.DataParallel(model)
+        logger.info(f'Using {torch.cuda.device_count()} GPUs for prediction')
 
-        config["loaders"]["test"]["file_paths"][0] = multisize_save_path
-        test_loaders = get_test_loaders(config)
-        pred_path = file_path + "/test_out"
+    logger.info(f"Sending the model to '{device}'")
+    model = model.to(device)
+    pred_path = file_path + "/test_out"
+    # create predictor instance
+    tester = Tester(model, device,pred_path)
 
-        files = os.listdir(multisize_save_path)
-        files = list(filter(lambda x: x.endswith(".h5"), files))
-        num_of_files = len(files)
-        for t, test_loader in enumerate(test_loaders):
-            # run the model prediction on the test_loader and save the results in the output_dir
-            logger.info(f"[{t}/{num_of_files}]")
-            p_time, name = tester(test_loader, pred_path)
+    config["loaders"]["test"]["file_paths"][0] = multisize_save_path
+    test_loaders = get_test_loaders(config)
 
-            times[name] += p_time
-        print("Finished Prediction")
-        print(times)
 
-        # Rescale the predictions
-        out_path = file_path + "/test_out_rescaled"
-        rescale(times, file_path, pred_path, out_path)
-        print("Finished Rescale")
-        print(times)
+    files = os.listdir(multisize_save_path)
+    files = list(filter(lambda x: x.endswith(".h5"), files))
+    num_of_files = len(files)
+    for t, test_loader in enumerate(test_loaders):
+        # run the model prediction on the test_loader and save the results in the output_dir
+        logger.info(f"[{t}/{num_of_files}]")
+        p_time, name = tester(test_loader, pred_path)
 
-        if True:
-            print("Testing")
-            tester = PrecomputedTester(out_path)
-            tester.evaluate()
+        times[name] += p_time
+    print("Finished Prediction")
+    print(times)
 
-            eval_score, eval_score_detailed = tester.val_scores.avg
-            if hasattr(tester.metric, "compute_final"):
-                eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
-            print(eval_score, eval_score_detailed)
+    # Rescale the predictions
+    rescale(times, file_path, pred_path, test_out_path)
+    print("Finished Rescale")
+    print(times)
 
-        print(times)
-        with open(f"{file_path}/p_time.json", "w") as outfile:
-            json.dump(times, outfile, indent=4)
+    # print("Testing")
+    # tester = PrecomputedTester(test_out_path)
+    # tester.evaluate()
+    #
+    # eval_score, eval_score_detailed = tester.val_scores.avg
+    # if hasattr(tester.metric, "compute_final"):
+    #     eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
+    # print(eval_score, eval_score_detailed)
+
+    print(times)
+    with open(f"{file_path}/p_time.json", "w") as outfile:
+        json.dump(times, outfile, indent=4)
 
 
 if __name__ == '__main__':

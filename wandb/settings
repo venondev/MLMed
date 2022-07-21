@@ -1,5 +1,0 @@
-[default]
-entity = mlmed
-project = aneurysm-segmentation
-base_url = https://api.wandb.ai
-

@@ -40,8 +40,8 @@ python start.py --config PATH_TO_CONFIG
 
 You can find the config files for the two models in the train-configs folder.
 
-TODOOOOOO
-For the first model use the _______ config and for the second model the multisize_config.yaml config.
+
+For the first model use the ./train-config/normal_config.yaml config and for the second model the ./train-config/multisize_config.yaml config.
 You need to adjust the file path in loaders/train/file_paths[0] and loaders/val/file_paths[0] to the generated h5 folder or h5_aligned for the second model. 
 
 ## How to make predictions
@@ -54,9 +54,8 @@ python ./scripts/generate_test_data.py PATH_TO_TEST_DATA
 
 Then you can use the following script to make predictions with the first model:
 
-TODOOO PHILIPP hier die richtige config rein
 ```bash
-python ./start_test.py --config PATH_TO_CONFIG
+python ./start_test.py --config ./test-config/normal_config_test.yaml
 ```
 
 You need to adjust the model path to point to the .pytorch file and the file path to the h5 folder of the test data.
@@ -66,3 +65,22 @@ For the second model you also need to adjust the model path but change the file 
 ```bash
 python ./start_test_resize.py --config ./test-config/multisize_config_test.yaml
 ```
+
+To combine the predictions of the two models, you need to adjust the precomputed/original paths.
+To get the metrics, you need to change evaluate to true.
+
+```bash
+python ./start_test_merge.py --config ./test-config/merge_config.yaml
+```
+
+The final predictions are stored in ./final_out
+
+## How to generate the submission files
+
+To get the submission format based on the predictions, you need to run the submission.py script:
+
+```bash
+python ./script/submission.py --in_dir ./final_out
+```
+
+
