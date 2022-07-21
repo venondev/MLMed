@@ -36,10 +36,17 @@ class PrecomputedTester():
 
         for file in files:
             label = nib.load(os.path.join(orig_path, file + "_masks.nii.gz")).get_fdata()
-            label = label[:256, :256, :220]
+
+            # if label.shape[2] < 220:
+            #     label = np.pad(label, ((0, 0), (0, 0), (0, 220 - label.shape[2])), 'constant', constant_values=0)
+            #
+            # label = label[:256, :256, :220]
+
             sum_ = nib.load(os.path.join(self.precomputed_path, file + "_sum_rescaled.nii.gz")).get_fdata()
 
             pred = sum_ > 1.5
+
+            print(label.shape, pred.shape)
 
             eval_score = self.metric(torch.tensor(pred[np.newaxis, np.newaxis]), torch.tensor(label[np.newaxis, np.newaxis]))
             self.val_scores.update(eval_score, 1)
@@ -84,7 +91,7 @@ class Tester:
         else:
             input
 
-    def __call__(self, test_loader):
+    def __call__(self, test_loader, test_out_path = "./test_out"):
         result = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         dev = torch.zeros(test_loader.dataset.raw_full_shape).to(self.device)
         self.model.eval()
@@ -111,17 +118,18 @@ class Tester:
 
         # Save results to disk
         test_path_split = test_loader.dataset.file_path.split('/')
-        name = test_path_split[-1].replace(".h5", "")
+        name = "_".join(test_path_split[-1].replace(".h5", "").split("_")[:-1])
+        name_with_fac = test_path_split[-1].replace(".h5", "")
         orig_path = "/".join(test_path_split[:-2])
 
-        if not os.path.exists("./test_out"):
-            os.makedirs("./test_out")
+        if not os.path.exists(test_out_path):
+            os.makedirs(test_out_path)
 
-        orig_data = nib.load(orig_path + "/" + name + "_masks.nii.gz")
+        orig_data = nib.load(orig_path + "/" + name + "_orig.nii.gz")
         nib.save(nib.Nifti1Image(result.cpu().numpy(), orig_data.affine, header=orig_data.header),
-                 './test_out/' + name + '_pred.nii.gz')
+                 test_out_path + "/" + name_with_fac + '_pred.nii.gz')
         nib.save(nib.Nifti1Image(dev.cpu().numpy(), orig_data.affine, header=orig_data.header),
-                 './test_out/' + name + '_dev.nii.gz')
+                 test_out_path + "/" + name_with_fac + '_dev.nii.gz')
 
 
 

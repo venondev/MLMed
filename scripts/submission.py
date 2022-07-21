@@ -67,6 +67,7 @@ files = os.listdir(input_data_path)
 files = list(filter(lambda x: x.endswith("_pred.nii.gz"), files))
 names = [i.replace("_pred.nii.gz", "") for i in files][:4]
 print(names)
+
 if not os.path.exists("./submission/task1/"):
     os.makedirs("./submission/task1/")
 if not os.path.exists("./submission/task2/"):
@@ -76,6 +77,7 @@ if not os.path.exists("./submission/task2/"):
 result_task1 = {"username": "Emu", "task_1_results": []}
 with open(input_data_path + "/p_time.json", "r") as f:
     ptimes = json.load(f)
+
 for name in tqdm(names):
     # load data
     tqdm.write(f"Processing: {name}...")
@@ -101,6 +103,7 @@ for name in tqdm(names):
         if i["id"] == name:
             ptime = i["processing_time_in_seconds"]
     result_task1["task_1_results"].append(calc_candidate_json(labeled_prediction, affine, name, ptime))
+
 print(f"Store Task1 in ./submission/task1/task1.json")
 print(f"Store Task2 in ./submission/task2/*")
 with open("./submission/task1/task1.json", "w") as outfile:
