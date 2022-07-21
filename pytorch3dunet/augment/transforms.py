@@ -44,20 +44,20 @@ class RandomScale:
         elif alpha > 1 and alpha <= 1.05:
             alpha += 0.05
 
-        zoomed = zoom(m, alpha, order=self.order, mode='reflect')
+        zoomed = zoom(m, alpha, order=self.order)
         zoom_shape = np.array(zoomed.shape)
         m_shape = np.array(m.shape)
 
         if alpha < 1:
             ret = np.zeros(m.shape)
-            start = self.random_state.randint(0, m_shape - zoom_shape, size=3)
-            stop = start + zoom_shape
+            start = (m_shape - zoom_shape) // 2
+            end = start + zoom_shape
 
-            ret[Slice3D(start, stop).tuple] = zoomed
+            ret[Slice3D(start, end).tuple] = zoomed
 
             return ret
         else:
-            start = self.random_state.randint(0, zoomed.shape - m_shape, size=3)
+            start = (zoom_shape - m_shape) // 2
             stop = start + m_shape
             return zoomed[Slice3D(start, stop).tuple]
 
