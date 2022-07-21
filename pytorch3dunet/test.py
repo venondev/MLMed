@@ -19,11 +19,12 @@ def main():
     # Load configuration
     config, _, is_test = load_config()
 
-
-    if config.get("precomputed_predictions", None) is not None:
+    if config.get("precomputed_predictions", False):
         print("Using precomputed predictions")
-        tester = PrecomputedTester(config["loaders"]["test"]["file_paths"][0])
-        tester.evaluate2()
+
+        tester = PrecomputedTester(config.get("precomputed_path_hjalmar", None),
+                                   config.get("precomputed_path_philipp", None), config.get("original_path", None))
+        tester.evaluate()
 
         # TODO: Schauen wie wir das mit der Time machen
     else:
@@ -64,6 +65,7 @@ def main():
     if hasattr(tester.metric, "compute_final"):
         eval_score, eval_score_detailed = tester.metric.compute_final(tester.val_scores)
     print(eval_score, eval_score_detailed)
+
 
 if __name__ == '__main__':
     main()

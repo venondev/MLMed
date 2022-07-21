@@ -3,6 +3,9 @@
 # Training and validation data can be downloaded from: https://osf.io/thxzn/
 model_path: model/base_model.pytorch
 precomputed_predictions: true
+precomputed_path_hjalmar: /home/tu-pirlet/MLMed/last_validation_prediction/hjalmar_pred
+precomputed_path_philipp: /home/tu-pirlet/MLMed/last_validation_prediction/philipp_pred
+original_path: /group/emu/shared/data_norm/full_new_val/
 run:
   name: reduce batchsize 
   notes: first complete run
@@ -35,7 +38,7 @@ loaders:
   # when reading from multiple threads.
   dataset: OwnLazyHDF5Dataset
   # batch dimension; if number of GPUs is N > 1, then a batch_size of N * batch_size will automatically be taken for DataParallel
-  batch_size: 8
+  batch_size: 4
   # how many subprocesses to use for data loading
   num_workers: 2
   # path to the raw data within the H5
@@ -49,7 +52,8 @@ loaders:
   test:
     # paths to the val datasets
     file_paths:
-      - ./test_out/
+      - "/home/tu-pirlet/test_data/h5"
+      #- "./test_out/"
     slice_path: "test_datasets.pkl"
 
     # SliceBuilder configuration, i.e. how to iterate over the input volume patch-by-patch
@@ -58,7 +62,7 @@ loaders:
       # train patch size given to the network (adapt to fit in your GPU mem, generally the bigger patch the better)
       patch_shape: [ 64, 64, 64 ]
       # train stride between patches
-      stride_shape: [ 22, 22, 22 ]
+      stride_shape: [ 21, 21, 21 ]
 
     # data augmentation
     transformer:
