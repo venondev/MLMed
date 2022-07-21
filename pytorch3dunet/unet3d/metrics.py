@@ -8,7 +8,6 @@ from skimage.metrics import adapted_rand_error, peak_signal_noise_ratio, mean_sq
 import torch
 from monai.metrics import compute_hausdorff_distance, compute_average_surface_distance
 
-
 from pytorch3dunet.unet3d.losses import compute_per_channel_dice
 from pytorch3dunet.unet3d.seg_metrics import AveragePrecision, Accuracy, precision, recall, f2
 from pytorch3dunet.unet3d.utils import get_logger, expand_as_one_hot, convert_to_numpy
@@ -34,15 +33,15 @@ class DiceCoefficient:
 
 
 def compute_volume_bias(volume_gt, volume_pred):
-    return np.clip(1 / np.mean(np.abs(volume_gt - volume_pred)), 0, 1)
+    return np.mean(np.abs(volume_gt - volume_pred))
 
 
 def compute_volume_std_dev(volume_gt, volume_pred):
-    return np.clip(1 / np.std(np.abs(volume_gt - volume_pred)), 0, 1)
+    return np.std(np.abs(volume_gt - volume_pred))
 
 
 def compute_volume_pearson(volume_gt, volume_pred):
-    return max(0, (np.corrcoef(volume_gt, volume_pred)[0, 1]))
+    return np.corrcoef(volume_gt, volume_pred)[0, 1]
 
 
 # Filters out predictions with a volume less than the given threshold
@@ -53,7 +52,7 @@ def calc_single_aneus_pred(pred, threshold=60):
     for aneu_idx in range(1, num_single_aneus_pred + 1):
         cur = pred_labeled == aneu_idx
         if cur.sum() <= threshold:
-            print("Filtered out")
+            logger.info(f"Filtered out")
             pred_labeled[cur] = 0
         else:
             keep.append(aneu_idx)
@@ -161,6 +160,71 @@ class MedMl:
         volume_gt = np.concatenate([x[0] for x in eval_tracker.cache])
         volume_pred = np.concatenate([x[1] for x in eval_tracker.cache])
 
+        eval_tracker.scores["bias"] = np.clip(1 /compute_volume_bias(volume_gt, volume_pred),1,0)
+        eval_tracker.scores["std"] = np.clip(1 /compute_volume_std_dev(volume_gt, volume_pred),1,0)
+        eval_tracker.scores["pearson"] = max(0, compute_volume_pearson(volume_gt, volume_pred))
+
+        eval_tracker.scores["tp"] = np.sum([x[2] for x in eval_tracker.cache])
+        eval_tracker.scores["fp"] = np.sum([x[3] for x in eval_tracker.cache])
+        eval_tracker.scores["fn"] = np.sum([x[4] for x in eval_tracker.cache])
+
+        eval_tracker.scores["precision"] = precision(eval_tracker.scores["tp"], eval_tracker.scores["fp"],
+                                                     eval_tracker.scores["fn"])
+        eval_tracker.scores["recall"] = recall(eval_tracker.scores["tp"], eval_tracker.scores["fp"],
+                                               eval_tracker.scores["fn"])
+        eval_tracker.scores["f2"] = f2(eval_tracker.scores["precision"], eval_tracker.scores["recall"])
+
+        _, detailed = eval_tracker.avg
+        total = (detailed["bias"] + detailed["std"] + detailed["pearson"] + detailed["hausdorff"]
+                 + detailed["jaccard"] + detailed["avg_dist"]) / 6
+
+        return total, detailed
+
+
+class MedMlSub:
+
+    def __init__(self, skip_channels=(), ignore_index=None, **kwargs):
+        self.compute_jaccard = MeanIoU(skip_channels=skip_channels, ignore_index=ignore_index)
+
+    def __call__(self, input, target, ratio=1):
+        assert input.dim() == 5
+        assert input.size() == target.size()
+
+        tp, fp, fn, jaccard_scores_per_aneu = compute_detection_metrics(input, target)
+
+        input_bin = (input > 0.5).long()
+        jaccard_score = self.compute_jaccard(input, target)
+
+        hausdorff_score = compute_hausdorff_distance(input_bin, target)
+        avg_score = compute_average_surface_distance(input_bin, target)
+
+        overlap = (torch.logical_and(input_bin, target).sum(dim=(1, 2, 3, 4)) >= 1).float()
+
+        avg_score[avg_score == float("inf")] = float("nan")
+        hausdorff_score[hausdorff_score == float("inf")] = float("nan")
+
+        detailed_score = {
+            "hausdorff": hausdorff_score * ratio,
+            "avg_dist": avg_score * ratio,
+            "jaccard": jaccard_score,
+            "overlap": overlap,
+            "jaccard_per_aneu": jaccard_scores_per_aneu,
+        }
+
+        # Values for final calculation
+        volume_gt = []
+        volume_pred = []
+        for _input, _target in zip(input_bin, target):
+            volume_gt.append(_target.sum().item())
+            volume_pred.append(_input.sum().item())
+        volume_gt = np.array(volume_gt) * (ratio ** 3)
+        volume_pred = np.array(volume_pred) * (ratio ** 3)
+        return detailed_score, (volume_gt, volume_pred, tp, fp, fn)
+
+    def compute_final(self, eval_tracker):
+        volume_gt = np.concatenate([x[0] for x in eval_tracker.cache])
+        volume_pred = np.concatenate([x[1] for x in eval_tracker.cache])
+
         eval_tracker.scores["bias"] = compute_volume_bias(volume_gt, volume_pred)
         eval_tracker.scores["std"] = compute_volume_std_dev(volume_gt, volume_pred)
         eval_tracker.scores["pearson"] = compute_volume_pearson(volume_gt, volume_pred)
@@ -169,8 +233,10 @@ class MedMl:
         eval_tracker.scores["fp"] = np.sum([x[3] for x in eval_tracker.cache])
         eval_tracker.scores["fn"] = np.sum([x[4] for x in eval_tracker.cache])
 
-        eval_tracker.scores["precision"] = precision(eval_tracker.scores["tp"], eval_tracker.scores["fp"], eval_tracker.scores["fn"])
-        eval_tracker.scores["recall"] = recall(eval_tracker.scores["tp"], eval_tracker.scores["fp"], eval_tracker.scores["fn"])
+        eval_tracker.scores["precision"] = precision(eval_tracker.scores["tp"], eval_tracker.scores["fp"],
+                                                     eval_tracker.scores["fn"])
+        eval_tracker.scores["recall"] = recall(eval_tracker.scores["tp"], eval_tracker.scores["fp"],
+                                               eval_tracker.scores["fn"])
         eval_tracker.scores["f2"] = f2(eval_tracker.scores["precision"], eval_tracker.scores["recall"])
 
         _, detailed = eval_tracker.avg
